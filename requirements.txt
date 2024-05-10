@@ -1,0 +1,3 @@
+discord.py==2.3.2
+easy_pil==0.3.3
+python-decouple==3.8
