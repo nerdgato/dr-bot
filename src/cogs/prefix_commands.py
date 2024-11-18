@@ -7,11 +7,6 @@ class prefix_commands(commands.Cog):
   @commands.Cog.listener()
   async def on_ready(self):
     print("Comandos prefix cargados correctamente.")
-
-  @commands.command()
-  async def ip(self, ctx):
-    await ctx.channel.purge(limit=1)
-    await ctx.send("La IP del servidor es **server.boukencraft.com**")
   
   @commands.command()
   async def kek(self, ctx):

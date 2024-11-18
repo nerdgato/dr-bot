@@ -30,7 +30,6 @@ class AntiSpam(commands.Cog):
 
         # Verificar si el usuario tiene el rol que indica silencio
         if any(role.id == 1210341291821371403 for role in message.author.roles):
-            await message.delete()  # Eliminar el mensaje
             return  # Salir del método sin procesar más
 
         # Verificar si el usuario ha enviado mensajes recientemente
@@ -38,7 +37,8 @@ class AntiSpam(commands.Cog):
             oldest_msg = self.spam_tracker[user_id][0]
             if timestamp - oldest_msg < 5:  # Si envió más de 5 mensajes en menos de 5 segundos
                 # Silenciar al usuario
-                await message.author.add_roles(message.guild.get_role(1210341291821371403))
+                mute_role = message.guild.get_role(1210341291821371403)
+                await message.author.add_roles(mute_role)
                 channel = message.guild.get_channel(1210343520582508634)
                 # Enviar el mensaje inicial con la cuenta regresiva
                 initial_message = await channel.send(f"{message.author.mention} ha sido silenciado por spam. Volverá <t:{int(timestamp + self.mute_time)}:R>")
@@ -50,7 +50,7 @@ class AntiSpam(commands.Cog):
                 # Modificar el mensaje para eliminar el timestamp
                 await initial_message.edit(content=f"{message.author.mention} fue silenciado por spam. *Volvió a los 4 minutos*  :white_check_mark:")   
                 # Levantar el silencio
-                await message.author.remove_roles(message.guild.get_role(1210341291821371403))
+                await message.author.remove_roles(mute_role)
                 # Limpiar la lista de mensajes del usuario
                 self.spam_tracker[user_id] = []
 
