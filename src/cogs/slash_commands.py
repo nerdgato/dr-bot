@@ -147,25 +147,6 @@ class slash_commands(commands.Cog):
         
         await interaction.response.send_message("Mensaje enviado al canal de mute.", ephemeral=True)
     
-    # comando para crear sanction_message
-    @app_commands.command(name="sanction_message", description="Envía un mensaje al canal de sanciones")
-    async def sanction_message(self, interaction: discord.Interaction):
-        channel_id = 1308814397321384081
-        channel = interaction.guild.get_channel(channel_id)
-        
-        if not channel:
-            await interaction.response.send_message("El canal no existe.", ephemeral=True)
-            return
-        
-        # Verificar si ya existe un mensaje en el canal
-        messages = [message async for message in channel.history(limit=1)]
-        if messages:
-            await interaction.response.send_message("Ya existe un mensaje en el canal.", ephemeral=True)
-            return
-        
-        # Enviar el mensaje al canal y agregar la reacción
-        message = await channel.send("# SI PUEDES VER ESTE CANAL SIGNIFICA QUE FUISTE SANCIONADO")
-    
     def cargar_sanciones(self):
         # Cargar las sanciones desde el archivo JSON
         if os.path.exists(self.sanciones_file):
