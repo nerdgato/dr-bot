@@ -11,7 +11,7 @@ class Normas(commands.Cog):
         
         # Obtener el canal de destino y el mensaje de las normas
         channel_id = 1114642946382364766  # ID del canal de destino
-        message_id = 1212923083900321793  # ID del mensaje de las normas
+        message_id = 1308243954042667081  # ID del mensaje de las normas
 
         channel = self.client.get_channel(channel_id)
         message = await channel.fetch_message(message_id)
@@ -23,7 +23,7 @@ class Normas(commands.Cog):
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
         # Verificar que la reacción ocurrió en el mensaje de las normas
-        if payload.channel_id == 1114642946382364766 and payload.message_id == 1212923083900321793:
+        if payload.channel_id == 1114642946382364766 and payload.message_id == 1308243954042667081:
             guild = self.client.get_guild(payload.guild_id)
             member = guild.get_member(payload.user_id)
             role = guild.get_role(1114642945094725768)  # ID del rol a asignar

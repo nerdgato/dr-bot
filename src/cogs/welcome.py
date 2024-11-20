@@ -1,11 +1,11 @@
-import discord
-from discord import Interaction, File, app_commands
-from discord.ext import commands
+import os
+from discord import File
 from easy_pil import Editor, load_image_async, Font
+from discord.ext import commands
 
 class Welcome(commands.Cog):
     def __init__(self, client):
-       self.client = client
+        self.client = client
     
     @commands.Cog.listener()
     async def on_ready(self):
@@ -14,7 +14,11 @@ class Welcome(commands.Cog):
     @commands.Cog.listener()
     async def on_member_join(self, member):
         channel = member.guild.system_channel
-        background = Editor("/images/pic2.png")
+
+        # Usar ruta relativa
+        image_path = os.path.join(os.getcwd(), "images", "pic2.png")
+        background = Editor(image_path)
+        
         profile_pic = await load_image_async(str(member.avatar.url))
         profile = Editor(profile_pic).resize((150, 150)).circle_image()
         poppins = Font.poppins(size=50, variant="bold")

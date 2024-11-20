@@ -6,7 +6,7 @@ from typing import Literal
 class Client(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!", intents=discord.Intents.all())
-        self.cogslist = ["prefix_commands", "slash_commands", "logs", "welcome", "anti_spam", "reportes", "normas"]
+        self.cogslist = ["prefix_commands", "slash_commands", "logs", "welcome", "anti_spam", "reportes", "normas", "buttons"]
 
     async def on_ready(self):
         print(f"El bot {self.user.name} se ha conectado correctamente.")
@@ -23,7 +23,7 @@ class Client(commands.Bot):
 client = Client()
 
 @client.tree.command(name="reload", description="Recarga una clase Cog")
-async def reload(interaction: discord.Interaction, cog:Literal["prefix_commands", "slash_commands", "logs", "welcome", "anti_spam", "reportes", "normas"]):
+async def reload(interaction: discord.Interaction, cog:Literal["prefix_commands", "slash_commands", "logs", "welcome", "anti_spam", "reportes", "normas", "buttons"]):
   try:
     await client.reload_extension(name="cogs."+cog.lower())
     await interaction.response.send_message(f"Se recargó **{cog}.py** exitosamente.", ephemeral=True)

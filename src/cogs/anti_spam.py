@@ -8,25 +8,22 @@ import os
 class AntiSpam(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.spam_tracker = defaultdict(list)
-        self.mute_time = 240  # Tiempo en segundos para silenciar al usuario
-
-        # Cargar las URLs de gifs desde el archivo JSON
+        self.spam_tracker = {}
+        self.mute_time = 300  # Tiempo de mute en segundos
         with open(os.path.join("data", "media.json"), "r") as f:
             media_data = json.load(f)
             self.gifs = media_data.get("gifs", {})
-    
-    @commands.Cog.listener()
-    async def on_ready(self):
-        print("AntiSpam cargado correctamente.")
 
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot:
-            return  # Ignorar mensajes de bots
+            return
 
         user_id = message.author.id
         timestamp = message.created_at.timestamp()
+
+        if user_id not in self.spam_tracker:
+            self.spam_tracker[user_id] = []
 
         # Verificar si el usuario tiene el rol que indica silencio
         if any(role.id == 1210341291821371403 for role in message.author.roles):
@@ -45,10 +42,18 @@ class AntiSpam(commands.Cog):
                 # Obtener la URL del gif desde el archivo JSON
                 gif_url = self.gifs.get("muted")
                 await channel.send(gif_url)
+
+                # Borrar todos los mensajes recientes del usuario excepto el primero
+                messages_to_delete = self.spam_tracker[user_id][1:]
+                for msg_timestamp in messages_to_delete:
+                    async for msg in message.channel.history(limit=100):
+                        if msg.author.id == user_id and msg.created_at.timestamp() == msg_timestamp:
+                            await msg.delete()
+
                 # Iniciar temporizador para levantar el silencio después del tiempo especificado
                 await asyncio.sleep(self.mute_time)
                 # Modificar el mensaje para eliminar el timestamp
-                await initial_message.edit(content=f"{message.author.mention} fue silenciado por spam. *Volvió a los 4 minutos*  :white_check_mark:")   
+                await initial_message.edit(content=f"{message.author.mention} fue silenciado por spam. {int(self.mute_time // 60)}  :white_check_mark:")   
                 # Levantar el silencio
                 await message.author.remove_roles(mute_role)
                 # Limpiar la lista de mensajes del usuario
