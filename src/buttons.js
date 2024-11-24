@@ -15,8 +15,12 @@ const client = new Client({
     ]
 });
 
-// Ruta del archivo de sanciones (modificada para acceder a la carpeta data fuera de src)
+// Ruta del archivo de sanciones
 const sancionesFile = path.join(__dirname, '..', 'data', 'sanciones.json');
+
+// Rutas de imágenes
+const sancionImageFile = path.join(__dirname, '..', 'images', 'sancion_eralawea.png');
+const muteImageFile = path.join(__dirname, '..', 'images', 'muted.png');
 
 // Cargar las sanciones desde el archivo JSON
 function cargarSanciones() {
@@ -30,11 +34,22 @@ function cargarSanciones() {
 // Evento cuando el bot se conecta y está listo
 client.once('ready', async () => {
     console.log('¡Bot listo!');
-    const canalId = '1308814397321384081';  // El ID del canal donde se debe agregar el botón
-    const canal = await client.channels.fetch(canalId);  // Obtener el canal
+    
+    // Canal de sanciones
+    await manejarCanalSanciones('1308814397321384081', sancionImageFile, 
+        '# SI PUEDES VER ESTE CANAL SIGNIFICA QUE FUISTE SANCIONADO. LUEGO DE 3 SANCIONES SERÁS BANEADO.\n## RECUERDA QUE DEBES RESPETAR LAS REGLAS DEL SERVIDOR.\n## TIENES 24 HORAS PARA APELAR CADA SANCIÓN.');
+
+    // Canal de muteos
+    await manejarCanalMuteos('1308131311034040340', muteImageFile,
+        '# SI PUEDES VER ESTE CANAL SIGNIFICA QUE FUISTE MUTEADO, ESPERA A QUE TERMINE EL TIMER PARA PODER CHARLAR NUEVAMENTE.\n## REVISA TU MENCIÓN EN  ⁠<#1210343520582508634>.');
+});
+
+// Manejar el canal de sanciones
+async function manejarCanalSanciones(canalId, imageFile, messageContent) {
+    const canal = await client.channels.fetch(canalId);
 
     if (!canal) {
-        console.log('Canal no encontrado');
+        console.log(`Canal ${canalId} no encontrado`);
         return;
     }
 
@@ -42,9 +57,10 @@ client.once('ready', async () => {
     const mensajes = await canal.messages.fetch({ limit: 1 });
 
     if (mensajes.size === 0) {
-        // Si no existe el primer mensaje, crear el mensaje inicial con el botón
-        const primerMensaje = await canal.send({
-            content: '# SI PUEDES VER ESTE CANAL SIGNIFICA QUE FUISTE SANCIONADO.',
+        // Si no existe el primer mensaje, crear el mensaje inicial con la imagen, texto y botón
+        await canal.send({
+            files: [imageFile],
+            content: messageContent,
             components: [
                 new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
@@ -54,35 +70,32 @@ client.once('ready', async () => {
                 )
             ]
         });
-    } else {
-        // Si ya existe el primer mensaje, solo agregar el botón si no está presente
-        const primerMensaje = mensajes.first();
-
-        // Verificar si el mensaje ya tiene el botón
-        const botonExistente = primerMensaje.components.some(row => 
-            row.components.some(button => button.customId === 'ver_sanciones_button')
-        );
-
-        if (botonExistente) {
-            console.log('El botón ya existe');
-            return;
-        }
-
-        // Crear el botón y añadirlo en el mismo mensaje
-        const button = new ButtonBuilder()
-            .setCustomId('ver_sanciones_button')
-            .setLabel('Ver Sanciones')
-            .setStyle(ButtonStyle.Danger);
-
-        const row = new ActionRowBuilder().addComponents(button);
-
-        // Enviar el botón debajo del primer mensaje sin texto adicional
-        await primerMensaje.channel.send({
-            content: '# SI PUEDES VER ESTE CANAL SIGNIFICA QUE FUISTE SANCIONADO.',
-            components: [row],
-        });
     }
-});
+}
+
+// Manejar el canal de muteos
+async function manejarCanalMuteos(canalId, imageFile, messageContent) {
+    const canal = await client.channels.fetch(canalId);
+
+    if (!canal) {
+        console.log(`Canal ${canalId} no encontrado`);
+        return;
+    }
+
+    // Buscar el primer mensaje en el canal
+    const mensajes = await canal.messages.fetch({ limit: 1 });
+
+    if (mensajes.size === 0) {
+        // Si no existe el primer mensaje, crear el mensaje inicial con la imagen, texto y reacción
+        const mensaje = await canal.send({
+            files: [imageFile],
+            content: messageContent,
+        });
+
+        // Agregar la reacción
+        await mensaje.react('😭');
+    }
+}
 
 // Manejar la interacción con el botón
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -107,7 +120,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
     }
 });
-
 
 // Login del bot con el token desde .env
 client.login(process.env.DISCORD_TOKEN);

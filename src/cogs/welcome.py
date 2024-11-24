@@ -32,7 +32,7 @@ class Welcome(commands.Cog):
         file = File(fp=background.image_bytes, filename="pic2.png")
         rules_channel = member.guild.get_channel(1114642946382364766)
 
-        await channel.send(f"¡Bom dia {member.mention}! Para más informacion revisa {rules_channel.mention}")
+        await channel.send(f"¡Bom dia {member.mention}! Para más informacion revisa {rules_channel.mention}.")
         await channel.send(file=file)
 
 async def setup(client):

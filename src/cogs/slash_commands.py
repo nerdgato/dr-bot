@@ -5,8 +5,38 @@ from discord.ext import commands
 from discord.ui import Button, View
 import asyncio
 import json
+import requests
 import os
 
+def subir_a_imgur_directo(imagen_data, sancion_id):
+    client_id = "7d95b2db396e96a"  # Tu Client ID de Imgur
+    
+    # Configurar los encabezados con el Client-ID
+    headers = {
+        'Authorization': f'Client-ID {client_id}'
+    }
+    
+    # Parámetros opcionales para la imagen (título y descripción), ahora con la ID de la sanción en el título
+    data = {
+        'type': 'file',
+        'title': f'Sanción de Discord #{sancion_id}',  # Usar la ID de la sanción
+        'description': 'Imagen subida automáticamente desde el bot de Discord.'
+    }
+    
+    # Realizar la solicitud POST para subir la imagen
+    url = "https://api.imgur.com/3/image"
+    files = {'image': imagen_data}
+    
+    response = requests.post(url, headers=headers, data=data, files=files)
+    
+    # Verificar la respuesta de la API
+    if response.status_code == 200:
+        # Si la subida fue exitosa, devolver la URL de la imagen
+        response_data = response.json()
+        return response_data['data']['link']
+    else:
+        print(f"Error al subir la imagen: {response.text}")
+        return None
 class slash_commands(commands.Cog):
     def __init__(self, client: commands.Bot):
         self.client = client   
@@ -16,7 +46,12 @@ class slash_commands(commands.Cog):
             self.gifs = media_data.get("gifs", {})
             self.sanciones_file = os.path.join("data", "sanciones.json")
             self.sanciones = self.cargar_sanciones()
-
+            self.sancion_id = self.obtener_ultima_id() + 1
+    
+    @commands.Cog.listener()
+    async def on_ready(self):
+        await self.client.tree.sync()
+        print(f"Comandos slash sincronizados en {len(self.client.guilds)} servidores.")
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -124,29 +159,6 @@ class slash_commands(commands.Cog):
         # Edita el mensaje en el canal de logs
         await initial_message.edit(content=f"{member.mention} fue muteado por {interaction.user.mention}. *Volvió a los {time_minutes} minutos*  :white_check_mark:")
 
-
-    @app_commands.command(name="mute_message", description="Envía un mensaje al canal de mute")
-    async def mute_message(self, interaction: discord.Interaction):
-        channel_id = 1308131311034040340
-        mention_channel_id = 1210343520582508634
-        channel = interaction.guild.get_channel(channel_id)
-        
-        if not channel:
-            await interaction.response.send_message("El canal no existe.", ephemeral=True)
-            return
-        
-        # Verificar si ya existe un mensaje en el canal
-        messages = [message async for message in channel.history(limit=1)]
-        if messages:
-            await interaction.response.send_message("Ya existe un mensaje en el canal.", ephemeral=True)
-            return
-        
-        # Enviar el mensaje al canal y agregar la reacción
-        message = await channel.send(f"# SI PUEDES VER ESTE CANAL SIGNIFICA QUE FUISTE MUTEADO, ESPERA A QUE TERMINE EL TIMER PARA PODER CHARLAR NUEVAMENTE. REVISA TU MENCIÓN EN  <#{mention_channel_id}>")
-        await message.add_reaction("😭")  # Reemplaza con :sob: si el emoji personalizado está disponible
-        
-        await interaction.response.send_message("Mensaje enviado al canal de mute.", ephemeral=True)
-    
     def cargar_sanciones(self):
         # Cargar las sanciones desde el archivo JSON
         if os.path.exists(self.sanciones_file):
@@ -159,8 +171,46 @@ class slash_commands(commands.Cog):
         with open(self.sanciones_file, "w") as f:
             json.dump(self.sanciones, f, indent=4)
 
+
+    def obtener_ultima_id(self):
+        if not self.sanciones:
+            return 0
+        return max(int(sancion["id"]) for sanciones in self.sanciones.values() for sancion in sanciones)
+        client_id = "7d95b2db396e96a"  # Tu Client ID de Imgur
+        
+        # Configurar los encabezados con el Client-ID
+        headers = {
+            'Authorization': f'Client-ID {client_id}'
+        }
+        
+        # Abrir la imagen para enviarla
+        with open(imagen_path, 'rb') as imagen:
+            files = {
+                'image': imagen.read()
+            }
+            
+            # Parámetros opcionales para la imagen (título y descripción)
+            data = {
+                'type': 'file',
+                'title': 'Sanción de Discord',
+                'description': 'Imagen subida automáticamente desde el bot de Discord.'
+            }
+            
+            # Realizar la solicitud POST para subir la imagen
+            url = "https://api.imgur.com/3/image"
+            response = requests.post(url, headers=headers, data=data, files=files)
+            
+            # Verificar la respuesta de la API
+            if response.status_code == 200:
+                # Si la subida fue exitosa, devolver la URL de la imagen
+                response_data = response.json()
+                return response_data['data']['link']
+            else:
+                print(f"Error al subir la imagen: {response.text}")
+                return None
+
     @app_commands.command(name="sancionar", description="Sanciona a un jugador con un tipo de sanción específico")
-    async def sancionar(self, interaction: discord.Interaction, member: discord.Member, tipo_sancion: str):
+    async def sancionar(self, interaction: discord.Interaction, member: discord.Member, tipo_sancion: str, imagen: discord.Attachment):
         tipos_permitidos = ["spam", "toxicidad", "flood", "off-topic"]
         rol_sancion = interaction.guild.get_role(1308823767820013658)
         
@@ -176,24 +226,58 @@ class slash_commands(commands.Cog):
             )
             return
 
+        # Verificar si la imagen es None y enviar un mensaje de error si es así
+        if imagen is None:
+            await interaction.response.send_message(
+                "Es obligatorio proporcionar una imagen para la sanción.", ephemeral=True
+            )
+            return
+
         # Registrar la sanción
         user_id = str(member.id)
         if user_id not in self.sanciones:
             self.sanciones[user_id] = []
         
+        sancion_id = self.sancion_id
+        self.sancion_id += 1
+
         sancion = {
+            "id": sancion_id,
             "motivo": tipo_sancion,
-            "fecha": datetime.now().strftime("%d-%m-%Y %H:%M")
+            "fecha": datetime.now().strftime("%d-%m-%Y %H:%M"),
+            "imagen": None
         }
+
+        # Leer la imagen directamente desde el attachment
+        imagen_data = await imagen.read()
+
+        # Subir la imagen a Imgur y obtener la URL
+        url_imagen = subir_a_imgur_directo(imagen_data, sancion_id)
+
+        if url_imagen:
+            sancion["imagen"] = url_imagen
+        else:
+            sancion["imagen"] = None
+
         self.sanciones[user_id].append(sancion)
         self.guardar_sanciones()
-        
+
         await member.add_roles(rol_sancion)
 
         await interaction.response.send_message(
             f"{member.mention} ha sido sancionado por {tipo_sancion}. Total de sanciones: {len(self.sanciones[user_id])}", ephemeral=True
         )
-    
+    @app_commands.command(name="resetear_ids", description="Resetea las IDs de las sanciones (solo para testeo)")
+    async def resetear_ids(self, interaction: discord.Interaction):
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message(
+                "No tienes permisos para resetear las IDs de las sanciones.", ephemeral=True
+            )
+            return
+
+        self.sancion_id = 1
+        await interaction.response.send_message("Las IDs de las sanciones han sido reseteadas.", ephemeral=True)
+
     # Autocompletado para el parámetro 'tipo_sancion'
     @sancionar.autocomplete("tipo_sancion")
     async def sancionar_autocomplete(
