@@ -62,9 +62,6 @@ client.once('ready', async () => {
         '# SI PUEDES VER ESTE CANAL SIGNIFICA QUE FUISTE MUTEADO, ESPERA A QUE TERMINE EL TIMER PARA PODER CHARLAR NUEVAMENTE.\n## REVISA TU MENCIÓN EN  ⁠<#1210343520582508634>.');
 });
 
-
-
-
 // Manejar el canal de sanciones
 async function manejarCanalSanciones(canalId, imageFile, messageContent) {
     const canal = await client.channels.fetch(canalId);
@@ -140,7 +137,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         title: `Sanción ${index + 1}`,
                         description: `**Motivo:** ${sancion.motivo}\n**Fecha:** ${sancion.fecha}`,
                         color: 0xFF0000,
-                        image: { url: sancion.imagen } // Si quieres incluir la imagen
+                        image: { url: sancion.imagen } 
                     };
                 });
 
