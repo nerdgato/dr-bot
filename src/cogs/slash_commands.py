@@ -57,7 +57,7 @@ class slash_commands(commands.Cog):
                 "Tipo de sanción no válido. Los tipos permitidos son: spam, toxicidad, flood, off-topic.", ephemeral=True
             )
             return
-        
+
         if not interaction.user.guild_permissions.manage_roles:
             await interaction.response.send_message(
                 "No tienes permisos para sancionar a otros usuarios.", ephemeral=True
@@ -72,7 +72,9 @@ class slash_commands(commands.Cog):
 
         # Registrar sanción en la base de datos
         fecha_actual = datetime.now().strftime("%d-%m-%Y %H:%M")
-        sancion_id = guardar_sancion(str(member.id), tipo_sancion, fecha_actual, None)
+        estado = 'activa'  # Estado por defecto
+        staff_id = str(interaction.user.id)  # ID del staff que ejecuta el comando
+        sancion_id = guardar_sancion(str(member.id), tipo_sancion, fecha_actual, None, estado, staff_id)
 
         # Subir imagen a Imgur
         imagen_data = await imagen.read()
@@ -81,14 +83,30 @@ class slash_commands(commands.Cog):
         # Actualizar la sanción con la URL de la imagen
         actualizar_sancion_con_imagen(sancion_id, url_imagen)
 
+        # Incrementar el contador de sanciones del usuario
+        try:
+            conn = conectar_db()
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE usuarios
+                SET cant_sanciones = cant_sanciones + 1
+                WHERE discord_id = ?
+            ''', (str(member.id),))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Error al actualizar las sanciones del usuario {member.name}: {e}")
+            await interaction.response.send_message("Error al actualizar la base de datos.", ephemeral=True)
+            return
+
         # Añadir rol de sanción
         rol_sancion = discord.utils.get(interaction.guild.roles, name="Sanctioned")
         if not rol_sancion:
-            await interaction.response.send_message("El rol 'Sancionado' no existe en el servidor.", ephemeral=True)
+            await interaction.response.send_message("El rol 'Sanctioned' no existe en el servidor.", ephemeral=True)
             return
 
         await member.add_roles(rol_sancion)
-        
+
         await interaction.response.send_message(
             f"{member.mention} ha sido sancionado por {tipo_sancion}. Imagen: {url_imagen}", ephemeral=True
         )
@@ -108,13 +126,135 @@ class slash_commands(commands.Cog):
 
     @app_commands.command(name="ver_sanciones", description="Muestra las sanciones de un jugador")
     async def ver_sanciones(self, interaction: discord.Interaction, member: discord.Member):
-        sanciones = cargar_sanciones(str(member.id))
-        if not sanciones:
+        try:
+            # Enviar un "thinking" state mientras procesa la solicitud
+            await interaction.response.defer(ephemeral=True)
+
+            # Cargar sanciones desde la base de datos
+            sanciones = cargar_sanciones(str(member.id))
+
+            # Verificar si el usuario tiene sanciones
+            if not sanciones:
+                await interaction.followup.send(
+                    f"{member.mention} no tiene sanciones registradas.", ephemeral=True
+                )
+                return
+
+            # Enviar un embed por cada sanción
+            for sancion in sanciones:
+                sancion_id, motivo, fecha, imagen = sancion
+
+                # Crear el embed para la sanción
+                embed = discord.Embed(
+                    title=f"Sanción ID: {sancion_id}",
+                    description=f"Detalles de la sanción para {member.mention}",
+                    color=discord.Color.red(),
+                )
+                embed.add_field(name="Motivo", value=motivo, inline=False)
+                embed.add_field(name="Fecha", value=fecha, inline=False)
+
+                # Añadir la imagen si existe
+                if imagen:
+                    embed.set_image(url=imagen)
+
+                # Enviar el embed
+                await interaction.followup.send(embed=embed, ephemeral=True)
+
+        except Exception as e:
+            print(f"Error al cargar sanciones: {e}")
+            await interaction.followup.send(
+                "Ocurrió un error al intentar cargar las sanciones.", ephemeral=True
+            )
+
+    @app_commands.command(name="remover_sancion", description="Elimina una sanción de un jugador.")
+    async def remover_sancion(self, interaction: discord.Interaction, member: discord.Member, id_sancion: int):
+        # Verificar permisos del usuario
+        if not interaction.user.guild_permissions.manage_roles:
             await interaction.response.send_message(
-                f"{member.mention} no tiene sanciones registradas.", ephemeral=True
+                "No tienes permisos para remover sanciones.", ephemeral=True
             )
             return
 
+        try:
+            # Conectar a la base de datos y verificar la existencia de la sanción
+            conn = conectar_db()
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, motivo, fecha, imagen
+                FROM sanciones
+                WHERE user_id = ?
+            ''', (str(member.id),))
+            sanciones = cursor.fetchall()
+
+            # Verificar si el usuario tiene sanciones
+            if not sanciones:
+                await interaction.response.send_message(
+                    f"{member.mention} no tiene sanciones registradas.", ephemeral=True
+                )
+                conn.close()
+                return
+
+            # Verificar que el ID introducido sea válido
+            if id_sancion not in [s[0] for s in sanciones]:
+                await interaction.response.send_message(
+                    f"El ID {id_sancion} no corresponde a una sanción válida.", ephemeral=True
+                )
+                conn.close()
+                return
+
+            # Eliminar la sanción de la tabla `sanciones`
+            cursor.execute('''
+                DELETE FROM sanciones WHERE id = ?
+            ''', (id_sancion,))
+            conn.commit()
+
+            # Actualizar la tabla `usuarios` para restar -1 al contador
+            cursor.execute('''
+                UPDATE usuarios
+                SET cant_sanciones = cant_sanciones - 1
+                WHERE discord_id = ?
+            ''', (str(member.id),))
+            conn.commit()
+            conn.close()
+
+            await interaction.response.send_message(
+                f"Sanción con ID {id_sancion} eliminada correctamente. Se actualizó el contador de sanciones de {member.mention}.",
+                ephemeral=True
+            )
+        except Exception as e:
+            print(f"Error al remover la sanción: {e}")
+            await interaction.response.send_message(
+                "Ocurrió un error al intentar remover la sanción.", ephemeral=True
+            )
+
+    @remover_sancion.autocomplete("id_sancion")
+    async def remover_sancion_autocomplete(
+        self,
+        interaction: discord.Interaction,
+        current: str,  # Lo que el usuario ha escrito hasta ahora
+    ) -> list[app_commands.Choice[int]]:
+        # Obtener el miembro del que se quieren remover sanciones
+        member = interaction.namespace.member
+        if not member:
+            return []
+
+        # Conectar a la base de datos para obtener las sanciones del usuario
+        conn = conectar_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM sanciones WHERE user_id = ?', (str(member.id),))
+        sanciones = cursor.fetchall()
+        conn.close()
+
+        # Filtrar las IDs según lo que el usuario ha escrito
+        sanciones_filtradas = [
+            sancion[0] for sancion in sanciones if current.isdigit() and current in str(sancion[0])
+        ]
+
+        # Devolver una lista de opciones como `app_commands.Choice`
+        return [
+            app_commands.Choice(name=f"ID: {sancion_id}", value=sancion_id)
+            for sancion_id in sanciones_filtradas
+        ]
     @app_commands.command(name="clear", description="Borra un número específico de mensajes en el canal actual")
     async def clear(self, interaction: discord.Interaction, cantidad: int):
         if cantidad <= 0:
@@ -187,26 +327,39 @@ class slash_commands(commands.Cog):
     async def registrar_usuarios(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)  # Defer para manejar la interacción
 
-        # IDs de roles que corresponden a bots
+        # IDs de roles que deben ser excluidos
         bot_roles_ids = {1213624079131746434, 1114642945094725767}
+        roles_excluidos = {1308823767820013658, 1210341291821371403}  # Sanctioned y Muted
 
         # Obtener todos los miembros del servidor
         miembros = interaction.guild.members
         registrados = 0
 
         for miembro in miembros:
-            # Verificar si el miembro tiene algún rol de bot
+            # Verificar si el miembro tiene roles de bot
             tiene_rol_bot = any(role.id in bot_roles_ids for role in miembro.roles)
 
             if not tiene_rol_bot:  # Si no tiene roles de bot
+                # Filtrar roles válidos (excluyendo los especificados)
+                roles_validos = [
+                    role for role in miembro.roles 
+                    if role.id not in roles_excluidos and role.name != "@everyone"
+                ]
+
+                # Determinar el rol con mayor prioridad (el de mayor posición)
+                if roles_validos:
+                    rol_mayor_prioridad = max(roles_validos, key=lambda r: r.position).name
+                else:
+                    rol_mayor_prioridad = "Sin rol"
+
                 try:
-                    # Usar conectar_db() para interactuar con la base de datos
+                    # Insertar datos en la base de datos
                     conn = conectar_db()
                     cursor = conn.cursor()
                     cursor.execute('''
-                        INSERT OR IGNORE INTO usuarios (discord_id, nombre_usuario)
-                        VALUES (?, ?)
-                    ''', (str(miembro.id), miembro.name))
+                        INSERT OR IGNORE INTO usuarios (discord_id, nombre_usuario, rol_actual)
+                        VALUES (?, ?, ?)
+                    ''', (str(miembro.id), miembro.name, rol_mayor_prioridad))
                     conn.commit()
                     registrados += 1
                     conn.close()
@@ -217,6 +370,6 @@ class slash_commands(commands.Cog):
             f"Se han registrado {registrados} usuarios en la base de datos.", ephemeral=True
         )
 
-    
+       
 async def setup(client: commands.Bot):
     await client.add_cog(slash_commands(client))

@@ -21,8 +21,6 @@ function conectarDB() {
     return new sqlite3.Database('bouken.db', (err) => {
         if (err) {
             console.error('Error al conectar a la base de datos:', err.message);
-        } else {
-            console.log('Conectado a la base de datos SQLite.');
         }
     });
 }
@@ -30,7 +28,7 @@ function conectarDB() {
 // Función para cargar sanciones de un usuario
 function cargarSanciones(userId, callback) {
     const db = conectarDB();
-    const query = 'SELECT id, motivo, fecha, imagen FROM sanciones WHERE user_id = ?';
+    const query = 'SELECT id, motivo, fecha, imagen, staff FROM sanciones WHERE user_id = ?';
 
     db.all(query, [userId], (err, rows) => {
         if (err) {
@@ -42,8 +40,6 @@ function cargarSanciones(userId, callback) {
         db.close((err) => {
             if (err) {
                 console.error('Error al cerrar la base de datos:', err.message);
-            } else {
-                console.log('Base de datos cerrada.');
             }
         });
     });
@@ -132,16 +128,29 @@ client.on(Events.InteractionCreate, async (interaction) => {
             if (!sanciones || sanciones.length === 0) {
                 await interaction.reply({ content: 'No tienes sanciones registradas.', ephemeral: true });
             } else {
-                const embeds = sanciones.map((sancion, index) => {
-                    return {
-                        title: `Sanción ${index + 1}`,
-                        description: `**Motivo:** ${sancion.motivo}\n**Fecha:** ${sancion.fecha}`,
-                        color: 0xFF0000,
-                        image: { url: sancion.imagen } 
-                    };
-                });
+                // Crear los embeds y agregar los botones
+                const embeds = sanciones.map((sancion, index) => ({
+                    title: `Sanción #${index + 1}`,
+                    description: `**id_sanción:** ${sancion.id}\n**motivo:** ${sancion.motivo}\n**fecha:** ${sancion.fecha}\n**staff:** <@${sancion.staff}>`,
+                    color: 0xFF0000,
+                    image: { url: sancion.imagen },
+                }));
 
-                await interaction.reply({ embeds: embeds, ephemeral: true });
+                // Crear el botón "Apelar"
+                const actionRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('apelar_sancion_button')
+                        .setLabel('Apelar')
+                        .setEmoji('⚖️')
+                        .setStyle(ButtonStyle.Secondary)
+                );
+
+                // Enviar la respuesta con los embeds y el botón
+                await interaction.reply({
+                    embeds: embeds,
+                    components: [actionRow],  // Agregar el botón de apelación
+                    ephemeral: true
+                });
             }
         });
     }

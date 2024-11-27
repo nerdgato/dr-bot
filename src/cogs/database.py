@@ -15,7 +15,9 @@ def inicializar_db():
             user_id TEXT NOT NULL,
             motivo TEXT NOT NULL,
             fecha TEXT NOT NULL,
-            imagen TEXT
+            imagen TEXT,
+            estado TEXT NOT NULL DEFAULT 'activa',
+            staff TEXT NOT NULL
         )
     ''')
     conn.commit()
@@ -23,13 +25,13 @@ def inicializar_db():
 
 # Insertar una sanción en la base de datos
 # database.py
-def guardar_sancion(user_id, motivo, fecha, imagen):
+def guardar_sancion(user_id, motivo, fecha, imagen, estado, staff):
     conn = conectar_db()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO sanciones (user_id, motivo, fecha, imagen)
-        VALUES (?, ?, ?, ?)
-    ''', (user_id, motivo, fecha, imagen))
+        INSERT INTO sanciones (user_id, motivo, fecha, imagen, estado, staff)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (user_id, motivo, fecha, imagen, estado, staff))
     sancion_id = cursor.lastrowid  # Recuperar el ID generado automáticamente
     conn.commit()
     conn.close()
@@ -39,7 +41,7 @@ def guardar_sancion(user_id, motivo, fecha, imagen):
 def cargar_sanciones(user_id):
     conn = conectar_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT id, motivo, fecha, imagen FROM sanciones WHERE user_id = ?', (user_id,))
+    cursor.execute('SELECT id, motivo, fecha, imagen, estado, staff FROM sanciones WHERE user_id = ?', (user_id,))
     sanciones = cursor.fetchall()
     conn.close()
     return sanciones
