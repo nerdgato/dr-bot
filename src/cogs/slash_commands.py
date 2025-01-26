@@ -142,7 +142,11 @@ class slash_commands(commands.Cog):
 
             # Enviar un embed por cada sanción
             for sancion in sanciones:
-                sancion_id, motivo, fecha, imagen = sancion
+                sancion_id, motivo, fecha, imagen, estado, staff_id = sancion
+
+                # Obtener el objeto del miembro del staff
+                staff_member = await interaction.guild.fetch_member(staff_id)
+                staff_mention = staff_member.mention if staff_member else "Desconocido"
 
                 # Crear el embed para la sanción
                 embed = discord.Embed(
@@ -152,6 +156,8 @@ class slash_commands(commands.Cog):
                 )
                 embed.add_field(name="Motivo", value=motivo, inline=False)
                 embed.add_field(name="Fecha", value=fecha, inline=False)
+                embed.add_field(name="Estado", value=estado, inline=False)
+                embed.add_field(name="Staff", value=staff_mention, inline=False)
 
                 # Añadir la imagen si existe
                 if imagen:
