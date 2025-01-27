@@ -26,6 +26,29 @@ client.once('ready', () => {
 });
 
 client.on(Events.MessageCreate, async (message) => {
+    // Verificar si el mensaje se envió en un canal privado generado
+    if (!message.channel.name.startsWith('in-game-')) return;
+
+    // Verificar si el autor del mensaje es un miembro del staff
+    const staffRole = message.member.roles.highest; // Ajusta según tu lógica de roles de staff
+    if (!staffRole) return;
+
+    // Verificar si el mensaje contiene una mención a un usuario
+    const mentionedUsers = message.mentions.users;
+    if (mentionedUsers.size > 0) {
+        for (const [userId, user] of mentionedUsers) {
+            // Habilitar permisos de "SendMessages" para el usuario mencionado
+            const channel = message.channel;
+            await channel.permissionOverwrites.edit(userId, {
+                SendMessages: true,
+            });
+
+            console.log(`Permiso de enviar mensajes habilitado para ${user.tag} en el canal ${channel.name}.`);
+        }
+    }
+});
+
+client.on(Events.MessageCreate, async (message) => {
     if (message.channel.id === '1210224491913814088' && message.embeds.length > 0 && message.author.id === client.user.id) {
         const reportTitles = ["bug", "problema", "error"];
         const embed = message.embeds[0];
@@ -61,19 +84,24 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const staffRole = interaction.member.roles.highest;
 
     // Helper para extraer usuario mencionado
-    const extractMentionedUser = (content) => {
+    const extractMentionedUser = async (content) => {
         const mentionRegex = /<@!?(\d+)>/;
         const match = content.match(mentionRegex);
         if (match) {
             const userId = match[1];
-            const user = client.users.cache.get(userId);
-            if (!user) console.log(`Usuario no encontrado: ${userId}`);
-            return user;
+            try {
+                const user = await client.users.fetch(userId);
+                return user;
+            } catch (error) {
+                console.error(`Error al obtener el usuario ${userId}:`, error);
+                return null;
+            }
         } else {
             console.log('No se encontró una mención en el contenido:', content);
             return null;
         }
     };
+
 
     // Botón "Tomar Reporte"
     if (action === 'take') {
@@ -89,15 +117,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const reportEmbed = originalMessage.embeds[0];
             const reportIdFooter = reportEmbed.footer.text.split("#")[1];
     
-            const mentionedUser = extractMentionedUser(reportEmbed.description);
-            if (mentionedUser) {
-                const category = interaction.guild.channels.cache.get('1332000870681804830'); // ID de la categoría
-                const channelName = `in-game-${reportIdFooter}`;
+            const mentionedUser = await extractMentionedUser(reportEmbed.description);
 
+            if (mentionedUser) {
+                const category = interaction.guild.channels.cache.find((c) => c.name === "TICKETS" && c.type === 4 // Tipo 4 es categoría en discord.js
+                );
+
+                if (!category) {
+                    console.error("La categoría no existe. Asegúrate de crearla antes.");
+                    return interaction.reply({ content: "No se encontró la categoría para asignar este canal.", ephemeral: true });
+                }
+
+                const channelName = `in-game-${reportIdFooter}`;
                 const privateChannel = await interaction.guild.channels.create({
                     name: channelName,
                     type: 0, // Canal de texto
-                    parent: category,
+                    parent: category.id, // Asigna a la categoría encontrada
                     permissionOverwrites: [
                         {
                             id: interaction.guild.roles.everyone.id,
@@ -106,7 +141,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         {
                             id: mentionedUser.id,
                             allow: ['ViewChannel', 'SendMessages', 'AttachFiles', 'ReadMessageHistory'], // Permisos específicos para el usuario mencionado
-                            deny: ['MentionEveryone'], // Prevenir menciones de @everyone
+                            deny: ['SendMessages', 'MentionEveryone', 'AddReactions', 'CreatePublicThreads', 'CreatePrivateThreads', 'CreateInstantInvite', 'SendPolls'], // Denegar enviar mensajes
                         },
                     ],
                 });
