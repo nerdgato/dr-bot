@@ -41,6 +41,7 @@ client.on(Events.MessageCreate, async (message) => {
             const channel = message.channel;
             await channel.permissionOverwrites.edit(userId, {
                 SendMessages: true,
+                AttachFiles: true
             });
 
             console.log(`Permiso de enviar mensajes habilitado para ${user.tag} en el canal ${channel.name}.`);
@@ -140,7 +141,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         },
                         {
                             id: mentionedUser.id,
-                            allow: ['ViewChannel', 'SendMessages', 'AttachFiles', 'ReadMessageHistory'], // Permisos específicos para el usuario mencionado
+                            allow: ['ViewChannel', 'ReadMessageHistory'], // Permisos específicos para el usuario mencionado  ['SendMessages', 'AttachFiles']
                             deny: ['SendMessages', 'MentionEveryone', 'AddReactions', 'CreatePublicThreads', 'CreatePrivateThreads', 'CreateInstantInvite', 'SendPolls'], // Denegar enviar mensajes
                         },
                     ],
