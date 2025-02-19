@@ -10,6 +10,7 @@ class AntiSpam(commands.Cog):
         self.bot = bot
         self.spam_tracker = {}
         self.mute_time = 300  # Tiempo de mute en segundos
+        self.banned_gif_keyword = "caption.gif"  # Palabra clave para identificar el GIF prohibido
         with open(os.path.join("data", "media.json"), "r") as f:
             media_data = json.load(f)
             self.gifs = media_data.get("gifs", {})
@@ -18,6 +19,11 @@ class AntiSpam(commands.Cog):
     async def on_message(self, message):
         if message.author.bot:
             return
+
+        # Verificar si el mensaje contiene el GIF prohibido
+        if self.banned_gif_keyword in message.content:
+            await message.delete()
+            return  # Salir del método para no procesar más
 
         user_id = message.author.id
         timestamp = message.created_at.timestamp()
