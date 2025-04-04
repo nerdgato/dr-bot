@@ -129,7 +129,7 @@ class slash_commands(commands.Cog):
         self,
         interaction: discord.Interaction,
         id_sancion: int,
-        razon: str,
+        razones: str,
         evidencia: discord.Attachment
         ):
         try:
@@ -146,7 +146,7 @@ class slash_commands(commands.Cog):
                 )
                 return
 
-            if not razon:
+            if not razones:
                 await interaction.response.send_message(
                     "Debes proporcionar una razón para apelar la sanción.", ephemeral=True
                 )
