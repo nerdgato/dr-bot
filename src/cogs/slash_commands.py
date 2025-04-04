@@ -12,12 +12,12 @@ import asyncio
 
 load_dotenv()
 
-# Inicializar la base de datos
+
 inicializar_db()
 
-# Función para subir imágenes a Imgur
+
 def subir_a_imgur_directo(imagen_data, sancion_id):
-    client_id = os.getenv("IMGUR_CLIENT_ID")  # Obtener Client ID de Imgur desde .env
+    client_id = os.getenv("IMGUR_CLIENT_ID")  
     
     headers = {'Authorization': f'Client-ID {client_id}'}
     data = {
@@ -70,20 +70,20 @@ class slash_commands(commands.Cog):
             )
             return
 
-        # Registrar sanción en la base de datos
+        
         fecha_actual = datetime.now().strftime("%d-%m-%Y %H:%M")
-        estado = 'activa'  # Estado por defecto
-        staff_id = str(interaction.user.id)  # ID del staff que ejecuta el comando
+        estado = 'activa'  
+        staff_id = str(interaction.user.id)  
         sancion_id = guardar_sancion(str(member.id), tipo_sancion, fecha_actual, None, estado, staff_id)
 
-        # Subir imagen a Imgur
+        
         imagen_data = await imagen.read()
         url_imagen = subir_a_imgur_directo(imagen_data, sancion_id)
 
-        # Actualizar la sanción con la URL de la imagen
+        
         actualizar_sancion_con_imagen(sancion_id, url_imagen)
 
-        # Incrementar el contador de sanciones del usuario
+        
         try:
             conn = conectar_db()
             cursor = conn.cursor()
@@ -99,7 +99,7 @@ class slash_commands(commands.Cog):
             await interaction.response.send_message("Error al actualizar la base de datos.", ephemeral=True)
             return
 
-        # Añadir rol de sanción
+        
         rol_sancion = discord.utils.get(interaction.guild.roles, name="Sanctioned")
         if not rol_sancion:
             await interaction.response.send_message("El rol 'Sanctioned' no existe en el servidor.", ephemeral=True)
@@ -111,44 +111,44 @@ class slash_commands(commands.Cog):
             f"{member.mention} ha sido sancionado por {tipo_sancion}. Imagen: {url_imagen}", ephemeral=True
         )
 
-    # Autocompletado para el parámetro 'tipo_sancion'
+    
     @sancionar.autocomplete("tipo_sancion")
     async def sancionar_autocomplete(
         self,
         interaction: discord.Interaction,
-        current: str,  # Lo que el usuario ha escrito hasta ahora
+        current: str, 
     ) -> list[app_commands.Choice[str]]:
-        # Filtrar las opciones según lo que el usuario ha escrito
+        
         tipos_permitidos = ["spam", "toxicidad", "flood", "off-topic"]
         opciones = [tipo for tipo in tipos_permitidos if current.lower() in tipo.lower()]
-        # Devolver una lista de opciones como `app_commands.Choice`
+        
         return [app_commands.Choice(name=tipo, value=tipo) for tipo in opciones]
 
     @app_commands.command(name="ver_sanciones", description="Muestra las sanciones de un jugador")
     async def ver_sanciones(self, interaction: discord.Interaction, member: discord.Member):
         try:
-            # Enviar un "thinking" state mientras procesa la solicitud
+            
             await interaction.response.defer(ephemeral=True)
 
-            # Cargar sanciones desde la base de datos
+            
             sanciones = cargar_sanciones(str(member.id))
 
-            # Verificar si el usuario tiene sanciones
+            
             if not sanciones:
                 await interaction.followup.send(
                     f"{member.mention} no tiene sanciones registradas.", ephemeral=True
                 )
                 return
 
-            # Enviar un embed por cada sanción
+            
             for sancion in sanciones:
                 sancion_id, motivo, fecha, imagen, estado, staff_id = sancion
 
-                # Obtener el objeto del miembro del staff
+                
                 staff_member = await interaction.guild.fetch_member(staff_id)
                 staff_mention = staff_member.mention if staff_member else "Desconocido"
 
-                # Crear el embed para la sanción
+                
                 embed = discord.Embed(
                     title=f"Sanción ID: {sancion_id}",
                     description=f"Detalles de la sanción para {member.mention}",
@@ -159,11 +159,11 @@ class slash_commands(commands.Cog):
                 embed.add_field(name="Estado", value=estado, inline=False)
                 embed.add_field(name="Staff", value=staff_mention, inline=False)
 
-                # Añadir la imagen si existe
+                
                 if imagen:
                     embed.set_image(url=imagen)
 
-                # Enviar el embed
+                
                 await interaction.followup.send(embed=embed, ephemeral=True)
 
         except Exception as e:
@@ -174,7 +174,7 @@ class slash_commands(commands.Cog):
 
     @app_commands.command(name="remover_sancion", description="Elimina una sanción de un jugador.")
     async def remover_sancion(self, interaction: discord.Interaction, member: discord.Member, id_sancion: int):
-        # Verificar permisos del usuario
+        
         if not interaction.user.guild_permissions.manage_roles:
             await interaction.response.send_message(
                 "No tienes permisos para remover sanciones.", ephemeral=True
@@ -182,7 +182,7 @@ class slash_commands(commands.Cog):
             return
 
         try:
-            # Conectar a la base de datos y verificar la existencia de la sanción
+            
             conn = conectar_db()
             cursor = conn.cursor()
             cursor.execute('''
@@ -192,7 +192,7 @@ class slash_commands(commands.Cog):
             ''', (str(member.id),))
             sanciones = cursor.fetchall()
 
-            # Verificar si el usuario tiene sanciones
+           
             if not sanciones:
                 await interaction.response.send_message(
                     f"{member.mention} no tiene sanciones registradas.", ephemeral=True
@@ -200,7 +200,7 @@ class slash_commands(commands.Cog):
                 conn.close()
                 return
 
-            # Verificar que el ID introducido sea válido
+            
             if id_sancion not in [s[0] for s in sanciones]:
                 await interaction.response.send_message(
                     f"El ID {id_sancion} no corresponde a una sanción válida.", ephemeral=True
@@ -208,13 +208,13 @@ class slash_commands(commands.Cog):
                 conn.close()
                 return
 
-            # Eliminar la sanción de la tabla `sanciones`
+            
             cursor.execute('''
                 DELETE FROM sanciones WHERE id = ?
             ''', (id_sancion,))
             conn.commit()
 
-            # Actualizar la tabla `usuarios` para restar -1 al contador
+            
             cursor.execute('''
                 UPDATE usuarios
                 SET cant_sanciones = cant_sanciones - 1
@@ -237,26 +237,26 @@ class slash_commands(commands.Cog):
     async def remover_sancion_autocomplete(
         self,
         interaction: discord.Interaction,
-        current: str,  # Lo que el usuario ha escrito hasta ahora
+        current: str,  
     ) -> list[app_commands.Choice[int]]:
-        # Obtener el miembro del que se quieren remover sanciones
+        
         member = interaction.namespace.member
         if not member:
             return []
 
-        # Conectar a la base de datos para obtener las sanciones del usuario
+        
         conn = conectar_db()
         cursor = conn.cursor()
         cursor.execute('SELECT id FROM sanciones WHERE user_id = ?', (str(member.id),))
         sanciones = cursor.fetchall()
         conn.close()
 
-        # Filtrar las IDs según lo que el usuario ha escrito
+        
         sanciones_filtradas = [
             sancion[0] for sancion in sanciones if current.isdigit() and current in str(sancion[0])
         ]
 
-        # Devolver una lista de opciones como `app_commands.Choice`
+        
         return [
             app_commands.Choice(name=f"ID: {sancion_id}", value=sancion_id)
             for sancion_id in sanciones_filtradas
@@ -289,20 +289,20 @@ class slash_commands(commands.Cog):
     
     @app_commands.command(name="mute", description="Mutea a un usuario por un tiempo determinado")
     async def mute(self, interaction: discord.Interaction, member: discord.Member, time_minutes: int):
-        # Verifica si el tiempo es menor a 2 minutos
+        
         if time_minutes < 2:
             await interaction.response.send_message("El tiempo de muteo debe ser de al menos 2 minutos.", ephemeral=True)
             return
-        # Verifica si el usuario que ejecuta el comando tiene permisos necesarios para mutear a otros usuarios
+        
         if not interaction.user.guild_permissions.manage_roles:
             await interaction.response.send_message("No tienes permisos para mutear a otros usuarios.", ephemeral=True)
             return
         
-        # Obtiene el rol de mute de la guild
+        
         mute_role = discord.utils.get(interaction.guild.roles, name="Muted")
         timestamp = interaction.created_at.timestamp()
         
-        # Verifica si el rol de mute existe, si no, lo crea
+        
         if not mute_role:
             try:
                 mute_role = await interaction.guild.get_role(1210341291821371403)
@@ -312,70 +312,65 @@ class slash_commands(commands.Cog):
                 await interaction.response.send_message("No tengo permisos para obtener el rol de mute.", ephemeral=True)
                 return
         
-        # Mutea al usuario
+        
         await member.add_roles(mute_role)
         await interaction.response.send_message(f"El usuario {member.mention} ha sido muteado por {time_minutes} minutos.", ephemeral=True)
         
-        # Envía el log al canal correspondiente
-        log_channel = interaction.guild.get_channel(1210343520582508634)  # ID del canal de logs
+        
+        log_channel = interaction.guild.get_channel(1210343520582508634)  
         if log_channel:
             initial_message = await log_channel.send(f"El usuario {member.mention} ha sido muteado por {interaction.user.mention}. Volverá <t:{int(timestamp + (time_minutes*60))}:R>")
             gif_url = self.gifs.get("muted")
             await log_channel.send(gif_url)
-        # Espera el tiempo especificado antes de quitar el mute
+        
         await asyncio.sleep(time_minutes * 60)
         
-        # Quita el mute al usuario
+        
         await member.remove_roles(mute_role)
         await initial_message.edit(content=f"{member.mention} fue muteado por {interaction.user.mention}. *Volvió a los {time_minutes} minutos*  :white_check_mark:")
     
-    @app_commands.command(name="registrar_usuarios", description="Registra a todos los usuarios del servidor en la base de datos")
-    async def registrar_usuarios(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)  # Defer para manejar la interacción
+    @app_commands.command(name="registrar_usuario", description="Registra a un usuario específico en la base de datos")
+    @app_commands.describe(usuario="Selecciona al usuario que deseas registrar")
+    async def registrar_usuario(self, interaction: discord.Interaction, usuario: discord.Member):
+        await interaction.response.defer(ephemeral=True)
 
-        # IDs de roles que deben ser excluidos
         bot_roles_ids = {1213624079131746434, 1114642945094725767}
-        roles_excluidos = {1308823767820013658, 1210341291821371403}  # Sanctioned y Muted
+        roles_excluidos = {1308823767820013658, 1210341291821371403}
 
-        # Obtener todos los miembros del servidor
-        miembros = interaction.guild.members
-        registrados = 0
+        tiene_rol_bot = any(role.id in bot_roles_ids for role in usuario.roles)
 
-        for miembro in miembros:
-            # Verificar si el miembro tiene roles de bot
-            tiene_rol_bot = any(role.id in bot_roles_ids for role in miembro.roles)
+        if tiene_rol_bot:
+            await interaction.followup.send(f"❌ No se puede registrar a un bot o sistema.")
+            return
 
-            if not tiene_rol_bot:  # Si no tiene roles de bot
-                # Filtrar roles válidos (excluyendo los especificados)
-                roles_validos = [
-                    role for role in miembro.roles 
-                    if role.id not in roles_excluidos and role.name != "@everyone"
-                ]
+        # Filtrar roles válidos
+        roles_validos = [
+            role for role in usuario.roles
+            if role.id not in roles_excluidos and role.name != "@everyone"
+        ]
 
-                # Determinar el rol con mayor prioridad (el de mayor posición)
-                if roles_validos:
-                    rol_mayor_prioridad = max(roles_validos, key=lambda r: r.position).name
-                else:
-                    rol_mayor_prioridad = "Sin rol"
+        rol_mayor_prioridad = max(roles_validos, key=lambda r: r.position).name if roles_validos else "Sin rol"
 
-                try:
-                    # Insertar datos en la base de datos
-                    conn = conectar_db()
-                    cursor = conn.cursor()
-                    cursor.execute('''
-                        INSERT OR IGNORE INTO usuarios (discord_id, nombre_usuario, rol_actual)
-                        VALUES (?, ?, ?)
-                    ''', (str(miembro.id), miembro.name, rol_mayor_prioridad))
-                    conn.commit()
-                    registrados += 1
-                    conn.close()
-                except Exception as e:
-                    print(f"Error al registrar a {miembro.name}: {e}")
+        try:
+            conn = conectar_db()
+            cursor = conn.cursor()
 
-        await interaction.followup.send(
-            f"Se han registrado {registrados} usuarios en la base de datos.", ephemeral=True
-        )
+            # Intentar insertar
+            cursor.execute('''
+                INSERT INTO usuarios (discord_id, nombre_usuario, rol_actual)
+                VALUES (?, ?, ?)
+            ''', (str(usuario.id), usuario.name, rol_mayor_prioridad))
 
+            if cursor.rowcount == 0:
+                await interaction.followup.send(f"⚠️ El usuario {usuario.mention} ya estaba registrado.")
+            else:
+                await interaction.followup.send(f"✅ Usuario {usuario.mention} registrado correctamente.")
+
+            conn.commit()
+            conn.close()
+
+        except Exception as e:
+            await interaction.followup.send(f"❌ Error al registrar a {usuario.mention}: {e}")
        
 async def setup(client: commands.Bot):
     await client.add_cog(slash_commands(client))

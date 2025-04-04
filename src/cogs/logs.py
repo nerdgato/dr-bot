@@ -15,7 +15,7 @@ class Logs(commands.Cog):
     log_channel = self.client.get_channel(1209856052288426074)
 
     if message.content.startswith('!'):
-      command_name = message.content.split()[0][1:]  # Extraer el nombre del comando sin el prefijo '!'
+      command_name = message.content.split()[0][1:]  
 
       if hasattr(prefix_commands.prefix_commands, command_name):
         event_embed = discord.Embed(title="Comando enviado", description="Contenido y origen del comando", color=discord.Color.purple())

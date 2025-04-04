@@ -3,20 +3,19 @@ const { Client, GatewayIntentBits, ButtonBuilder, ActionRowBuilder, ButtonStyle,
 const path = require('path');
 require('dotenv').config();
 
-// Crear cliente de Discord
 const client = new Client({
     intents: [
-        GatewayIntentBits.Guilds,         // Para interactuar con servidores
-        GatewayIntentBits.GuildMessages,  // Para leer mensajes
-        GatewayIntentBits.MessageContent  // Para obtener el contenido del mensaje
+        GatewayIntentBits.Guilds,         
+        GatewayIntentBits.GuildMessages,  
+        GatewayIntentBits.MessageContent  
     ]
 });
 
-// Rutas de imágenes
+
 const sancionImageFile = path.join(__dirname, '..', 'images', 'sancion_eralawea.png');
 const muteImageFile = path.join(__dirname, '..', 'images', 'muted.png');
 
-// Función para conectar a la base de datos
+
 function conectarDB() {
     return new sqlite3.Database('bouken.db', (err) => {
         if (err) {
@@ -25,7 +24,7 @@ function conectarDB() {
     });
 }
 
-// Función para cargar sanciones de un usuario
+
 function cargarSanciones(userId, callback) {
     const db = conectarDB();
     const query = 'SELECT id, motivo, fecha, imagen, staff FROM sanciones WHERE user_id = ?';
@@ -45,20 +44,20 @@ function cargarSanciones(userId, callback) {
     });
 }
 
-// Evento cuando el bot se conecta y está listo
+
 client.once('ready', async () => {
     console.log('¡Bot listo!');
     
-    // Canal de sanciones
+
     await manejarCanalSanciones('1308814397321384081', sancionImageFile, 
         '# SI PUEDES VER ESTE CANAL SIGNIFICA QUE FUISTE SANCIONADO. LUEGO DE 3 SANCIONES SERÁS BANEADO.\n## RECUERDA QUE DEBES RESPETAR LAS REGLAS DEL SERVIDOR.\n## TIENES 24 HORAS PARA APELAR CADA SANCIÓN.');
 
-    // Canal de muteos
+
     await manejarCanalMuteos('1308131311034040340', muteImageFile,
         '# SI PUEDES VER ESTE CANAL SIGNIFICA QUE FUISTE MUTEADO, ESPERA A QUE TERMINE EL TIMER PARA PODER CHARLAR NUEVAMENTE.\n## REVISA TU MENCIÓN EN  ⁠<#1210343520582508634>.');
 });
 
-// Manejar el canal de sanciones
+
 async function manejarCanalSanciones(canalId, imageFile, messageContent) {
     const canal = await client.channels.fetch(canalId);
 
@@ -67,11 +66,11 @@ async function manejarCanalSanciones(canalId, imageFile, messageContent) {
         return;
     }
 
-    // Buscar el primer mensaje en el canal
+
     const mensajes = await canal.messages.fetch({ limit: 1 });
 
     if (mensajes.size === 0) {
-        // Si no existe el primer mensaje, crear el mensaje inicial con la imagen, texto y botón
+        
         await canal.send({
             files: [imageFile],
             content: messageContent,
@@ -87,7 +86,7 @@ async function manejarCanalSanciones(canalId, imageFile, messageContent) {
     }
 }
 
-// Manejar el canal de muteos
+
 async function manejarCanalMuteos(canalId, imageFile, messageContent) {
     const canal = await client.channels.fetch(canalId);
 
@@ -96,29 +95,29 @@ async function manejarCanalMuteos(canalId, imageFile, messageContent) {
         return;
     }
 
-    // Buscar el primer mensaje en el canal
+
     const mensajes = await canal.messages.fetch({ limit: 1 });
 
     if (mensajes.size === 0) {
-        // Si no existe el primer mensaje, crear el mensaje inicial con la imagen, texto y reacción
+        
         const mensaje = await canal.send({
             files: [imageFile],
             content: messageContent,
         });
 
-        // Agregar la reacción
+
         await mensaje.react('😭');
     }
 }
 
-// Manejar la interacción con el botón
+
 client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isButton()) return;
 
     if (interaction.customId === 'ver_sanciones_button') {
         const userId = interaction.user.id;
         
-        // Pasar el userId y manejar el callback
+
         cargarSanciones(userId, async (err, sanciones) => {
             if (err) {
                 await interaction.reply({ content: 'Hubo un error al cargar las sanciones.', ephemeral: true });
@@ -136,7 +135,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     image: { url: sancion.imagen },
                 }));
 
-                // Crear el botón "Apelar"
+
                 const actionRow = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
                         .setCustomId('apelar_sancion_button')
@@ -145,10 +144,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
                         .setStyle(ButtonStyle.Secondary)
                 );
 
-                // Enviar la respuesta con los embeds y el botón
+
                 await interaction.reply({
                     embeds: embeds,
-                    components: [actionRow],  // Agregar el botón de apelación
+                    components: [actionRow], 
                     ephemeral: true
                 });
             }
@@ -156,5 +155,5 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 });
 
-// Login del bot con el token desde .env
+
 client.login(process.env.DISCORD_TOKEN);

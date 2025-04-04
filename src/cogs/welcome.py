@@ -2,6 +2,7 @@ import os
 from discord import File
 from easy_pil import Editor, load_image_async, Font
 from discord.ext import commands
+from cogs.database import conectar_db  
 
 class Welcome(commands.Cog):
     def __init__(self, client):
@@ -15,7 +16,10 @@ class Welcome(commands.Cog):
     async def on_member_join(self, member):
         channel = member.guild.system_channel
 
-        # Usar ruta relativa
+        # Registrar usuario en la base de datos
+        await self.registrar_usuario(member)
+
+        # Crear imagen de bienvenida
         image_path = os.path.join(os.getcwd(), "images", "pic2.png")
         background = Editor(image_path)
         
@@ -32,8 +36,31 @@ class Welcome(commands.Cog):
         file = File(fp=background.image_bytes, filename="pic2.png")
         rules_channel = member.guild.get_channel(1114642946382364766)
 
-        await channel.send(f"¡Bom dia {member.mention}! Para más informacion revisa {rules_channel.mention}.")
+        await channel.send(f"¡Bom dia {member.mention}! Para más información revisa {rules_channel.mention}.")
         await channel.send(file=file)
+
+    async def registrar_usuario(self, member):
+        """ Registra un nuevo usuario en la base de datos SQLite. """
+        try:
+            conn = conectar_db()
+            cursor = conn.cursor()
+
+            # Determinar el rol de mayor prioridad (si tiene roles asignados)
+            roles_excluidos = {1308823767820013658, 1210341291821371403}  
+            roles_validos = [role for role in member.roles if role.id not in roles_excluidos and role.name != "@everyone"]
+            rol_mayor_prioridad = max(roles_validos, key=lambda r: r.position).name if roles_validos else "Sin rol"
+
+            cursor.execute('''
+                INSERT OR IGNORE INTO usuarios (discord_id, nombre_usuario, rol_actual)
+                VALUES (?, ?, ?)
+            ''', (str(member.id), member.name, rol_mayor_prioridad))
+
+            conn.commit()
+            conn.close()
+            print(f"Usuario {member.name} registrado correctamente en la base de datos.")
+
+        except Exception as e:
+            print(f"Error al registrar a {member.name}: {e}")
 
 async def setup(client):
     await client.add_cog(Welcome(client))

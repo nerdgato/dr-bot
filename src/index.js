@@ -1,5 +1,5 @@
-// index.js
 
-// Importar los módulos de reports.js y buttons.js
+
+// Importar los módulos de .js
 require('./reports');
 require('./buttons');

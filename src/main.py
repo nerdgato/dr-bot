@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands
 from decouple import config
 from typing import Literal
+import subprocess
+import threading
 
 class Client(commands.Bot):
     def __init__(self):
@@ -31,5 +33,28 @@ async def reload(interaction: discord.Interaction, cog:Literal["prefix_commands"
     print(e)
     await interaction.response.send_message(f"Error! no se pudo recargar el módulo. Revisa el error abajo \n```{e}```", ephemeral=True)
 
+def execute_js_script():
+    try:
+        process = subprocess.Popen(
+            ["node", "src/index.js"], 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        # Esperamos a que el proceso termine y capturamos su salida
+        stdout = process.communicate()
+        
+        if stdout:
+            print(f"Ejecución JS terminada correctamente")
+        
+    except Exception as e:
+        print("Error ejecutando el script JS:", e)
+
+# Usamos un hilo para ejecutar el script JS en paralelo
+js_thread = threading.Thread(target=execute_js_script)
+print("Iniciando el script JS...")
+js_thread.start()
+
 
 client.run(config("TOKEN"))
+

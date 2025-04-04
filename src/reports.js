@@ -26,18 +26,18 @@ client.once('ready', () => {
 });
 
 client.on(Events.MessageCreate, async (message) => {
-    // Verificar si el mensaje se envió en un canal privado generado
+    
     if (!message.channel.name.startsWith('in-game-')) return;
 
-    // Verificar si el autor del mensaje es un miembro del staff
-    const staffRole = message.member.roles.highest; // Ajusta según tu lógica de roles de staff
+    
+    const staffRole = message.member.roles.highest; 
     if (!staffRole) return;
 
-    // Verificar si el mensaje contiene una mención a un usuario
+    
     const mentionedUsers = message.mentions.users;
     if (mentionedUsers.size > 0) {
         for (const [userId, user] of mentionedUsers) {
-            // Habilitar permisos de "SendMessages" para el usuario mencionado
+            
             const channel = message.channel;
             await channel.permissionOverwrites.edit(userId, {
                 SendMessages: true,
@@ -81,10 +81,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
     const [action, , reportId] = interaction.customId.split('_');
     const staffMember = interaction.user;
 
-    // Obtener el rango del staff (basado en el primer rol más alto que tenga)
+    
     const staffRole = interaction.member.roles.highest;
 
-    // Helper para extraer usuario mencionado
+    
     const extractMentionedUser = async (content) => {
         const mentionRegex = /<@!?(\d+)>/;
         const match = content.match(mentionRegex);
@@ -104,7 +104,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     };
 
 
-    // Botón "Tomar Reporte"
+    
     if (action === 'take') {
         if (procesados.has(reportId)) {
             await interaction.reply({ content: 'Este reporte ya ha sido tomado por otro miembro del staff.', ephemeral: true });
@@ -121,7 +121,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const mentionedUser = await extractMentionedUser(reportEmbed.description);
 
             if (mentionedUser) {
-                const category = interaction.guild.channels.cache.find((c) => c.name === "TICKETS" && c.type === 4 // Tipo 4 es categoría en discord.js
+                const category = interaction.guild.channels.cache.find((c) => c.name === "TICKETS" && c.type === 4 
                 );
 
                 if (!category) {
@@ -132,16 +132,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 const channelName = `in-game-${reportIdFooter}`;
                 const privateChannel = await interaction.guild.channels.create({
                     name: channelName,
-                    type: 0, // Canal de texto
-                    parent: category.id, // Asigna a la categoría encontrada
+                    type: 0, 
+                    parent: category.id, 
                     permissionOverwrites: [
                         {
                             id: interaction.guild.roles.everyone.id,
-                            deny: ['ViewChannel'], // Bloquea la vista para todos
+                            deny: ['ViewChannel'], 
                         },
                         {
                             id: mentionedUser.id,
-                            allow: ['ViewChannel', 'ReadMessageHistory'], // Permisos específicos para el usuario mencionado  ['SendMessages', 'AttachFiles']
+                            allow: ['ViewChannel', 'ReadMessageHistory'], 
                             deny: ['SendMessages', 'MentionEveryone', 'AddReactions', 'CreatePublicThreads', 'CreatePrivateThreads', 'CreateInstantInvite', 'SendPolls'], // Denegar enviar mensajes
                         },
                     ],
@@ -166,14 +166,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const logChannel = interaction.client.channels.cache.get('1212423583825924146');
             const logEmbed = new EmbedBuilder()
                 .setTitle(`Reporte #${reportIdFooter} Tomado`)
-                .setDescription(`${reportEmbed.description}\n\n<:staff:1331986276521349141> ${staffRole} ${staffMember}`) // Añadiendo emoji, rango y mención del staff
+                .setDescription(`${reportEmbed.description}\n\n<:staff:1331986276521349141> ${staffRole} ${staffMember}`) 
                 .setColor('Yellow')
                 .setThumbnail(staffMember.displayAvatarURL())
                 .setFooter({ text: 'BOUKENCRAFT TEAM' });
     
             await logChannel.send({ embeds: [logEmbed] });
     
-            // Crear nueva fila de botones con "Cerrar Reporte" habilitado y "Rechazar Reporte" deshabilitado
+            
             const actionRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId(`close_report_${reportId}`)
@@ -183,7 +183,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     .setCustomId(`reject_report_${reportId}`)
                     .setLabel('Rechazar Reporte')
                     .setStyle(ButtonStyle.Danger)
-                    .setDisabled(true) // Deshabilitar botón de "Rechazar Reporte"
+                    .setDisabled(true) 
             );
     
             await interaction.update({
@@ -196,7 +196,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
     }
 
-    // Botón "Cerrar Reporte"
+
     else if (action === 'close') {
         const reportOwnerId = procesados.get(reportId);
     
@@ -215,7 +215,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     
             const mentionedUser = extractMentionedUser(reportEmbed.description);
             if (mentionedUser) {
-                // Eliminar canal privado
+                
                 const privateChannel = interaction.guild.channels.cache.find(
                     (channel) => channel.name === `in-game-${reportIdFooter}`
                 );
@@ -327,5 +327,5 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 
-// Login del bot
+
 client.login(process.env.DISCORD_TOKEN);

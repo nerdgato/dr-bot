@@ -1,11 +1,11 @@
 import sqlite3
 
-# Conexión a la base de datos SQLite
+
 def conectar_db():
     conn = sqlite3.connect("bouken.db")
     return conn
 
-# Inicializar la tabla de sanciones
+
 def inicializar_db():
     conn = conectar_db()
     cursor = conn.cursor()
@@ -23,8 +23,7 @@ def inicializar_db():
     conn.commit()
     conn.close()
 
-# Insertar una sanción en la base de datos
-# database.py
+
 def guardar_sancion(user_id, motivo, fecha, imagen, estado, staff):
     conn = conectar_db()
     cursor = conn.cursor()
@@ -37,7 +36,7 @@ def guardar_sancion(user_id, motivo, fecha, imagen, estado, staff):
     conn.close()
     return sancion_id
 
-# Obtener sanciones de un usuario
+
 def cargar_sanciones(user_id):
     conn = conectar_db()
     cursor = conn.cursor()
@@ -46,7 +45,7 @@ def cargar_sanciones(user_id):
     conn.close()
     return sanciones
 
-# Actualizar la sanción con la URL de la imagen
+
 def actualizar_sancion_con_imagen(sancion_id, url_imagen):
     conn = conectar_db()
     cursor = conn.cursor()
