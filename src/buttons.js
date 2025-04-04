@@ -11,10 +11,8 @@ const client = new Client({
     ]
 });
 
-
 const sancionImageFile = path.join(__dirname, '..', 'images', 'sancion_eralawea.png');
 const muteImageFile = path.join(__dirname, '..', 'images', 'muted.png');
-
 
 function conectarDB() {
     return new sqlite3.Database('bouken.db', (err) => {
@@ -23,7 +21,6 @@ function conectarDB() {
         }
     });
 }
-
 
 function cargarSanciones(userId, callback) {
     const db = conectarDB();
@@ -44,19 +41,15 @@ function cargarSanciones(userId, callback) {
     });
 }
 
-
 client.once('ready', async () => {
     console.log('¡Bot listo!');
     
-
     await manejarCanalSanciones('1308814397321384081', sancionImageFile, 
         '# SI PUEDES VER ESTE CANAL SIGNIFICA QUE FUISTE SANCIONADO. LUEGO DE 3 SANCIONES SERÁS BANEADO.\n## RECUERDA QUE DEBES RESPETAR LAS REGLAS DEL SERVIDOR.\n## TIENES 24 HORAS PARA APELAR CADA SANCIÓN.');
-
-
+    
     await manejarCanalMuteos('1308131311034040340', muteImageFile,
         '# SI PUEDES VER ESTE CANAL SIGNIFICA QUE FUISTE MUTEADO, ESPERA A QUE TERMINE EL TIMER PARA PODER CHARLAR NUEVAMENTE.\n## REVISA TU MENCIÓN EN  ⁠<#1210343520582508634>.');
 });
-
 
 async function manejarCanalSanciones(canalId, imageFile, messageContent) {
     const canal = await client.channels.fetch(canalId);
@@ -66,11 +59,9 @@ async function manejarCanalSanciones(canalId, imageFile, messageContent) {
         return;
     }
 
-
     const mensajes = await canal.messages.fetch({ limit: 1 });
 
     if (mensajes.size === 0) {
-        
         await canal.send({
             files: [imageFile],
             content: messageContent,
@@ -86,7 +77,6 @@ async function manejarCanalSanciones(canalId, imageFile, messageContent) {
     }
 }
 
-
 async function manejarCanalMuteos(canalId, imageFile, messageContent) {
     const canal = await client.channels.fetch(canalId);
 
@@ -95,28 +85,23 @@ async function manejarCanalMuteos(canalId, imageFile, messageContent) {
         return;
     }
 
-
     const mensajes = await canal.messages.fetch({ limit: 1 });
 
     if (mensajes.size === 0) {
-        
         const mensaje = await canal.send({
             files: [imageFile],
             content: messageContent,
         });
 
-
         await mensaje.react('😭');
     }
 }
-
 
 client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isButton()) return;
 
     if (interaction.customId === 'ver_sanciones_button') {
         const userId = interaction.user.id;
-        
 
         cargarSanciones(userId, async (err, sanciones) => {
             if (err) {
@@ -135,15 +120,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
                     image: { url: sancion.imagen },
                 }));
 
-
                 const actionRow = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
                         .setCustomId('apelar_sancion_button')
-                        .setLabel('Apelar')
+                        .setLabel('Quiero Apelar')
                         .setEmoji('⚖️')
                         .setStyle(ButtonStyle.Secondary)
                 );
-
 
                 await interaction.reply({
                     embeds: embeds,
@@ -154,6 +137,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
         });
     }
 });
+
+client.on(Events.InteractionCreate, async (interaction) => {
+    if (!interaction.isButton()) return;
+
+    if (interaction.customId === 'apelar_sancion_button') {
+        // Enviar mensaje al usuario indicándole que use el comando
+        await interaction.reply({
+            content: 'Para apelar una sanción, por favor usa el comando `/apelar_sancion` en el chat. Luego proporciona la id de la sanción que deseas apelar, tus razones y una imagen o video como respaldo.',
+            ephemeral: true
+        });
+    }
+});
+
+
+
 
 
 client.login(process.env.DISCORD_TOKEN);

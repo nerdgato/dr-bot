@@ -50,7 +50,7 @@ class slash_commands(commands.Cog):
         print(f"Comandos slash sincronizados en {len(self.client.guilds)} servidores.")
 
     @app_commands.command(name="sancionar", description="Sanciona a un jugador con un tipo de sanción específico")
-    async def sancionar(self, interaction: discord.Interaction, member: discord.Member, tipo_sancion: str, imagen: discord.Attachment):
+    async def sancionar(self, interaction: discord.Interaction, member: discord.Member, tipo_sancion: str, evidencia: discord.Attachment):
         tipos_permitidos = ["spam", "toxicidad", "flood", "off-topic"]
         if tipo_sancion.lower() not in tipos_permitidos:
             await interaction.response.send_message(
@@ -64,7 +64,7 @@ class slash_commands(commands.Cog):
             )
             return
 
-        if imagen is None:
+        if evidencia is None:
             await interaction.response.send_message(
                 "Es obligatorio proporcionar una imagen para la sanción.", ephemeral=True
             )
@@ -77,7 +77,7 @@ class slash_commands(commands.Cog):
         sancion_id = guardar_sancion(str(member.id), tipo_sancion, fecha_actual, None, estado, staff_id)
 
         
-        imagen_data = await imagen.read()
+        imagen_data = await evidencia.read()
         url_imagen = subir_a_imgur_directo(imagen_data, sancion_id)
 
         
@@ -123,6 +123,83 @@ class slash_commands(commands.Cog):
         opciones = [tipo for tipo in tipos_permitidos if current.lower() in tipo.lower()]
         
         return [app_commands.Choice(name=tipo, value=tipo) for tipo in opciones]
+    
+    @app_commands.command(name="apelar_sancion", description="Apela una sanción existente")
+    async def apelar_sancion(
+        self,
+        interaction: discord.Interaction,
+        id_sancion: int,
+        razon: str,
+        evidencia: discord.Attachment
+        ):
+        try:
+            user_id = str(interaction.user.id)
+
+            # Verificar que la sanción ingresada pertenece al usuario y está activa
+            sanciones = cargar_sanciones(user_id)
+            sancion_valida = next((s for s in sanciones if s[0] == id_sancion and s[4].lower() == 'activa'), None)
+
+            if not sancion_valida:
+                await interaction.response.send_message(
+                    f"❌ Error al apelar: La sanción con ID **{id_sancion}** no existe, no está activa o no está asociada a tu usuario.",
+                    ephemeral=True
+                )
+                return
+
+            if not razon:
+                await interaction.response.send_message(
+                    "Debes proporcionar una razón para apelar la sanción.", ephemeral=True
+                )
+                return
+
+            if evidencia is None:
+                await interaction.response.send_message(
+                    "Es obligatorio proporcionar una imagen para la apelación.", ephemeral=True
+                )
+                return
+
+            await interaction.response.send_message(
+                f"Tu apelación para la sanción ID {id_sancion} ha sido recibida.", ephemeral=True
+            )
+
+        except Exception as e:
+            print(f"Error al apelar sanción: {e}")
+            await interaction.response.send_message(
+                "Ocurrió un error al intentar apelar la sanción.", ephemeral=True
+            )
+
+    @apelar_sancion.autocomplete("id_sancion")
+    async def apelar_sancion_autocomplete(
+        self,
+        interaction: discord.Interaction,
+        current: str,
+    ) -> list[app_commands.Choice[str]]:
+        # Obtener el ID del usuario que ejecuta el comando
+        user_id = str(interaction.user.id)
+
+        # Cargar las sanciones activas del usuario
+        sanciones = cargar_sanciones(user_id)
+
+        # Filtrar las sanciones activas
+        sanciones_activas = [
+            sancion for sancion in sanciones if sancion[4].lower() == 'activa'
+        ]
+
+        # Si no hay sanciones activas, no completar el campo
+        if not sanciones_activas:
+            return []
+
+        # Filtrar las sanciones que coincidan con la búsqueda del usuario
+        opciones = [
+            sancion for sancion in sanciones_activas if current.lower() in str(sancion[0]).lower()
+        ]
+
+        # Retornar las opciones para autocompletar
+        return [
+            app_commands.Choice(name=str(sancion[0]), value=str(sancion[0])) for sancion in opciones
+        ]
+       
+    
 
     @app_commands.command(name="ver_sanciones", description="Muestra las sanciones de un jugador")
     async def ver_sanciones(self, interaction: discord.Interaction, member: discord.Member):
@@ -261,6 +338,9 @@ class slash_commands(commands.Cog):
             app_commands.Choice(name=f"ID: {sancion_id}", value=sancion_id)
             for sancion_id in sanciones_filtradas
         ]
+        
+   
+
     @app_commands.command(name="clear", description="Borra un número específico de mensajes en el canal actual")
     async def clear(self, interaction: discord.Interaction, cantidad: int):
         if cantidad <= 0:
