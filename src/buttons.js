@@ -192,11 +192,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 ]
             });
 
+            // Calcular el timestamp actual + 1 minuto (60 segundos)
+            const timestamp = Math.floor(Date.now() / 1000) + (20 * 60); // 20 minutos
             // Enviar mensaje dentro del canal nuevo
             await canal.send({
-                content: `Hola ${member}, para apelar una sanción, por favor usa el comando \`/apelar_sancion\` en este canal. Luego proporciona la ID de la sanción que deseas apelar, tus razones y una imagen o video como respaldo.`
+                content: `Hola ${member}, para apelar una sanción, por favor usa el comando \`/apelar_sancion\` en este canal.\n\n` +
+                        `⏳ El canal se cerrará <t:${timestamp}:R>. Tienes ese tiempo para enviar la apelación.`
             });
-
+            
+            setTimeout(async () => {
+                try {
+                    await canal.delete('Canal de apelación cerrado automáticamente tras 1 minuto sin actividad.');
+                } catch (err) {
+                    console.error(`No se pudo eliminar el canal ${canal.name}:`, err);
+                }
+            }, 20 * 60 * 1000); // Para 1 minuto
             
 
             // Confirmar en el canal original que se creó el canal

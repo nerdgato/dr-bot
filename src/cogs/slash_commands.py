@@ -139,7 +139,7 @@ class slash_commands(commands.Cog):
             # Validar si el canal está en la categoría correcta y sigue el formato del ticket
             if not channel or channel.category_id != 1332000870681804830 or not channel.name.endswith("-ticket"):
                 await interaction.response.send_message(
-                    "❌ Este comando solo puede usarse en canales de apelación.",
+                    "❌ Este comando solo puede usarse en canales de ticket. Consulta <#1308814397321384081>",
                     ephemeral=True
                 )
                 return
