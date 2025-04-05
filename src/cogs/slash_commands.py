@@ -9,6 +9,7 @@ import os
 from cogs.database import inicializar_db, guardar_sancion, cargar_sanciones, actualizar_sancion_con_imagen, conectar_db
 from dotenv import load_dotenv
 import asyncio
+import time
 
 load_dotenv()
 
@@ -131,8 +132,18 @@ class slash_commands(commands.Cog):
         id_sancion: int,
         razones: str,
         evidencia: discord.Attachment
-        ):
+    ):
         try:
+            channel = interaction.channel
+
+            # Validar si el canal está en la categoría correcta y sigue el formato del ticket
+            if not channel or channel.category_id != 1332000870681804830 or not channel.name.endswith("-ticket"):
+                await interaction.response.send_message(
+                    "❌ Este comando solo puede usarse en canales de apelación.",
+                    ephemeral=True
+                )
+                return
+
             user_id = str(interaction.user.id)
 
             # Verificar que la sanción ingresada pertenece al usuario y está activa
@@ -158,16 +169,24 @@ class slash_commands(commands.Cog):
                 )
                 return
 
+            
+            timestamp = int(time.time()) + 11
             await interaction.response.send_message(
-                f"Tu apelación para la sanción ID {id_sancion} ha sido recibida.", ephemeral=True
+                f"✅ Tu apelación para la sanción ha sido recibida.\n\n"
+                f"⏳ Este canal se cerrará automáticamente <t:{timestamp}:R>.",
+                ephemeral=True 
             )
+            await asyncio.sleep(9)
+            await channel.delete(reason="Cierre automático tras apelación.")
+            
+            
 
         except Exception as e:
             print(f"Error al apelar sanción: {e}")
             await interaction.response.send_message(
-                "Ocurrió un error al intentar apelar la sanción.", ephemeral=True
+                "❌ Ocurrió un error al intentar apelar la sanción.", ephemeral=True
             )
-
+    
     @apelar_sancion.autocomplete("id_sancion")
     async def apelar_sancion_autocomplete(
         self,

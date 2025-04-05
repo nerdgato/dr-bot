@@ -1,5 +1,5 @@
 const sqlite3 = require('sqlite3').verbose();
-const { Client, GatewayIntentBits, ButtonBuilder, ActionRowBuilder, ButtonStyle, Events } = require('discord.js');
+const { Client, GatewayIntentBits, ButtonBuilder, ActionRowBuilder, ButtonStyle, Events, PermissionFlagsBits, ChannelType } = require('discord.js');
 const path = require('path');
 require('dotenv').config();
 
@@ -142,14 +142,77 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isButton()) return;
 
     if (interaction.customId === 'apelar_sancion_button') {
-        // Enviar mensaje al usuario indicándole que use el comando
-        await interaction.reply({
-            content: 'Para apelar una sanción, por favor usa el comando `/apelar_sancion` en el chat. Luego proporciona la id de la sanción que deseas apelar, tus razones y una imagen o video como respaldo.',
-            ephemeral: true
-        });
+        const guild = interaction.guild;
+        const member = interaction.member;
+        const categoryId = '1332000870681804830';
+
+        // Crear nombre del canal: {nickname}'s ticket
+        const canalNombre = `${member.nickname || member.user.username}-ticket`.replace(/\s+/g, '-').toLowerCase();
+
+        // Verificar si ya existe un canal con ese nombre (opcional para evitar spam)
+        const canalExistente = guild.channels.cache.find(c =>
+            c.name === canalNombre && c.parentId === categoryId
+        );
+        if (canalExistente) {
+            await interaction.reply({
+                content: `Ya tienes un canal de apelación abierto: <#${canalExistente.id}>`,
+                ephemeral: true
+            });
+            return;
+        }
+
+        try {
+            // Crear el canal
+            const canal = await guild.channels.create({
+                name: canalNombre,
+                type: ChannelType.GuildText,
+                parent: categoryId,
+                permissionOverwrites: [
+                    {
+                        id: guild.roles.everyone, // bloquear a todos
+                        deny: [PermissionFlagsBits.ViewChannel],
+                    },
+                    {
+                        id: member.id, // permitir solo al usuario
+                        allow: [
+                            PermissionFlagsBits.ViewChannel,
+                            PermissionFlagsBits.SendMessages,
+                            PermissionFlagsBits.ReadMessageHistory
+                        ],
+                    },
+                    {
+                        id: client.user.id, // permitir al bot
+                        allow: [
+                            PermissionFlagsBits.ViewChannel,
+                            PermissionFlagsBits.SendMessages,
+                            PermissionFlagsBits.ReadMessageHistory,
+                            PermissionFlagsBits.ManageChannels
+                        ],
+                    },
+                ]
+            });
+
+            // Enviar mensaje dentro del canal nuevo
+            await canal.send({
+                content: `Hola ${member}, para apelar una sanción, por favor usa el comando \`/apelar_sancion\` en este canal. Luego proporciona la ID de la sanción que deseas apelar, tus razones y una imagen o video como respaldo.`
+            });
+
+            
+
+            // Confirmar en el canal original que se creó el canal
+            await interaction.reply({
+                content: `Se ha creado un canal privado para tu apelación: <#${canal.id}>`,
+                ephemeral: true
+            });
+        } catch (error) {
+            console.error('Error al crear canal de apelación:', error);
+            await interaction.reply({
+                content: 'Ocurrió un error al crear el canal de apelación. Por favor, intenta nuevamente.',
+                ephemeral: true
+            });
+        }
     }
 });
-
 
 
 
