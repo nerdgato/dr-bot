@@ -6,10 +6,12 @@ from datetime import datetime
 import json
 import requests
 import os
-from cogs.database import inicializar_db, guardar_sancion, cargar_sanciones, actualizar_sancion_con_imagen, conectar_db, guardar_apelacion, cargar_apelaciones_por_usuario, cargar_apelaciones_por_sancion, actualizar_apelacion_imagen, actualizar_estado_apelacion
+from cogs.database import *
 from dotenv import load_dotenv
 import asyncio
 import time
+from datetime import datetime, timedelta
+
 
 load_dotenv()
 
@@ -129,7 +131,6 @@ class slash_commands(commands.Cog):
         ]
 
 
-    
     @app_commands.command(name="apelar_sancion", description="Apela una sanción existente")
     async def apelar_sancion(
         self,
@@ -141,7 +142,6 @@ class slash_commands(commands.Cog):
         try:
             channel = interaction.channel
 
-            # Validar si el canal está en la categoría correcta y sigue el formato del ticket
             if not channel or channel.category_id != 1332000870681804830 or not channel.name.endswith("-ticket"):
                 await interaction.response.send_message(
                     "❌ Este comando solo puede usarse en canales de ticket. Consulta <#1308814397321384081>",
@@ -162,6 +162,25 @@ class slash_commands(commands.Cog):
                 )
                 return
 
+            # ✅ Verificar si la sanción está dentro del plazo de apelación (menos de 24 horas)
+            fecha_str = sancion_valida[2]  # Asegúrate que el índice 2 es la fecha en formato DD-MM-YYYY HH:MM
+            try:
+                fecha_sancion = datetime.strptime(fecha_str, "%d-%m-%Y %H:%M")
+                ahora = datetime.now()
+                if ahora - fecha_sancion >= timedelta(hours=24):
+                    await interaction.response.send_message(
+                        "❌ Esta sanción ha vencido el plazo para apelar (24 horas desde su aplicación).",
+                        ephemeral=True
+                    )
+                    return
+            except ValueError:
+                await interaction.response.send_message(
+                    "❌ Formato de fecha inválido en la sanción. Contacta al staff.",
+                    ephemeral=True
+                )
+                return
+
+            # Verificaciones normales
             if not razones:
                 await interaction.response.send_message(
                     "Debes proporcionar una razón para apelar la sanción.", ephemeral=True
@@ -174,7 +193,7 @@ class slash_commands(commands.Cog):
                 )
                 return
 
-            # Leer la imagen y subirla a Imgur
+            # Subir imagen a Imgur
             imagen_data = await evidencia.read()
             url_imgur = subir_a_imgur_directo(imagen_data, id_sancion)
 
@@ -184,7 +203,7 @@ class slash_commands(commands.Cog):
                 )
                 return
 
-            # Guardar la apelación en la base de datos
+            # Guardar apelación
             apelacion_id = guardar_apelacion(
                 sancion_id=id_sancion,
                 user_id=user_id,
@@ -192,11 +211,7 @@ class slash_commands(commands.Cog):
                 evidencia=url_imgur
             )
 
-            # Crear el embed para notificar en el canal de logs
-            log_channel_id = 1358223294112989474
-            log_channel = interaction.client.get_channel(log_channel_id)
-
-            # Confirmación al usuario y cierre del ticket
+            # Notificar al usuario
             timestamp = int(time.time()) + 11
             await interaction.response.send_message(
                 f"✅ Tu apelación ha sido registrada correctamente.\n"
@@ -204,7 +219,11 @@ class slash_commands(commands.Cog):
                 f"⏳ Este canal se cerrará automáticamente <t:{timestamp}:R>.\n\n",
                 ephemeral=True
             )
-            
+
+            # Notificar en canal de logs
+            log_channel_id = 1358223294112989474
+            log_channel = interaction.client.get_channel(log_channel_id)
+
             if log_channel:
                 embed = discord.Embed(
                     title="📢 Nueva Apelación Recibida",
@@ -227,6 +246,8 @@ class slash_commands(commands.Cog):
             )
 
 
+
+
     
     @apelar_sancion.autocomplete("id_sancion")
     async def apelar_sancion_autocomplete(
@@ -240,18 +261,36 @@ class slash_commands(commands.Cog):
         # Cargar las sanciones activas del usuario
         sanciones = cargar_sanciones(user_id)
 
-        # Filtrar las sanciones activas
-        sanciones_activas = [
-            sancion for sancion in sanciones if sancion[4].lower() == 'activa'
-        ]
+        # Umbral de tiempo para apelar (por ejemplo, 24 horas)
+        tiempo_max_apelacion = timedelta(hours=24)
 
-        # Si no hay sanciones activas, no completar el campo
-        if not sanciones_activas:
+        # Fecha y hora actual
+        ahora = datetime.now()
+
+        # Filtrar sanciones activas y dentro del plazo de apelación
+        sanciones_activas_apelables = []
+        for sancion in sanciones:
+            estado = sancion[4].lower()
+            fecha_str = sancion[2]  # Asegúrate que este índice corresponde a la fecha
+
+            if estado != 'activa':
+                continue
+
+            try:
+                fecha_sancion = datetime.strptime(fecha_str, "%d-%m-%Y %H:%M")
+                if ahora - fecha_sancion < tiempo_max_apelacion:
+                    sanciones_activas_apelables.append(sancion)
+            except ValueError:
+                # Si el formato de fecha está mal, lo ignoramos o puedes loguearlo
+                continue
+
+        # Si no hay sanciones apelables, no completar el campo
+        if not sanciones_activas_apelables:
             return []
 
-        # Filtrar las sanciones que coincidan con la búsqueda del usuario
+        # Filtrar las que coincidan con la búsqueda del usuario
         opciones = [
-            sancion for sancion in sanciones_activas if current.lower() in str(sancion[0]).lower()
+            sancion for sancion in sanciones_activas_apelables if current.lower() in str(sancion[0]).lower()
         ]
 
         # Retornar las opciones para autocompletar

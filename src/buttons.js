@@ -1,5 +1,5 @@
 const sqlite3 = require('sqlite3').verbose();
-const { Client, GatewayIntentBits, ButtonBuilder, ActionRowBuilder, ButtonStyle, Events, PermissionFlagsBits, ChannelType } = require('discord.js');
+const { Client, GatewayIntentBits, ButtonBuilder, ActionRowBuilder, ButtonStyle, Events, PermissionFlagsBits, ChannelType, PermissionsBitField } = require('discord.js');
 const path = require('path');
 require('dotenv').config();
 
@@ -138,6 +138,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 });
 
+const moment = require('moment');
+
+
 client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isButton()) return;
 
@@ -167,6 +170,35 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 });
                 return;
             }
+
+            
+            const tiempoActual = moment(); // Fecha actual
+
+            // Separar sanciones activas en apelables y vencidas
+            const sancionesApelables = [];
+            const sancionesVencidas = [];
+
+            for (const sancion of sancionesActivas) {
+                const fechaSancion = moment(sancion.fecha, 'DD-MM-YYYY HH:mm');
+                const tiempoDiferencia = tiempoActual.diff(fechaSancion, 'hours');
+
+                if (tiempoDiferencia >= 24) {
+                    sancionesVencidas.push(sancion);
+                } else {
+                    sancionesApelables.push(sancion);
+                }
+            }
+
+            if (sancionesApelables.length === 0) {
+                // Todas las sanciones activas han vencido el plazo de apelación
+                await interaction.reply({
+                    content: 'Todas tus sanciones activas han vencido el plazo para apelar. Solo puedes apelar sanciones dentro de las primeras 24 horas desde que se aplicaron.',
+                    ephemeral: true
+                });
+                return;
+            }
+
+
 
             // Si tiene sanciones activas, proceder con la creación del canal
             const categoryId = '1332000870681804830';
