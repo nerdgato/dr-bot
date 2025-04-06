@@ -6,7 +6,7 @@ from datetime import datetime
 import json
 import requests
 import os
-from cogs.database import inicializar_db, guardar_sancion, cargar_sanciones, actualizar_sancion_con_imagen, conectar_db
+from cogs.database import inicializar_db, guardar_sancion, cargar_sanciones, actualizar_sancion_con_imagen, conectar_db, guardar_apelacion, cargar_apelaciones_por_usuario, cargar_apelaciones_por_sancion, actualizar_apelacion_imagen
 from dotenv import load_dotenv
 import asyncio
 import time
@@ -52,39 +52,37 @@ class slash_commands(commands.Cog):
 
     @app_commands.command(name="sancionar", description="Sanciona a un jugador con un tipo de sanción específico")
     async def sancionar(self, interaction: discord.Interaction, member: discord.Member, tipo_sancion: str, evidencia: discord.Attachment):
+        await interaction.response.defer(thinking=True, ephemeral=True)  # <--- línea nueva
+
         tipos_permitidos = ["spam", "toxicidad", "flood", "off-topic"]
         if tipo_sancion.lower() not in tipos_permitidos:
-            await interaction.response.send_message(
-                "Tipo de sanción no válido. Los tipos permitidos son: spam, toxicidad, flood, off-topic.", ephemeral=True
+            await interaction.followup.send(
+                "Tipo de sanción no válido. Los tipos permitidos son: spam, toxicidad, flood, off-topic."
             )
             return
 
         if not interaction.user.guild_permissions.manage_roles:
-            await interaction.response.send_message(
-                "No tienes permisos para sancionar a otros usuarios.", ephemeral=True
+            await interaction.followup.send(
+                "No tienes permisos para sancionar a otros usuarios."
             )
             return
 
         if evidencia is None:
-            await interaction.response.send_message(
-                "Es obligatorio proporcionar una imagen para la sanción.", ephemeral=True
+            await interaction.followup.send(
+                "Es obligatorio proporcionar una imagen para la sanción."
             )
             return
 
-        
         fecha_actual = datetime.now().strftime("%d-%m-%Y %H:%M")
         estado = 'activa'  
         staff_id = str(interaction.user.id)  
         sancion_id = guardar_sancion(str(member.id), tipo_sancion, fecha_actual, None, estado, staff_id)
 
-        
         imagen_data = await evidencia.read()
         url_imagen = subir_a_imgur_directo(imagen_data, sancion_id)
 
-        
         actualizar_sancion_con_imagen(sancion_id, url_imagen)
 
-        
         try:
             conn = conectar_db()
             cursor = conn.cursor()
@@ -97,33 +95,40 @@ class slash_commands(commands.Cog):
             conn.close()
         except Exception as e:
             print(f"Error al actualizar las sanciones del usuario {member.name}: {e}")
-            await interaction.response.send_message("Error al actualizar la base de datos.", ephemeral=True)
+            await interaction.followup.send("Error al actualizar la base de datos.")
             return
 
-        
         rol_sancion = discord.utils.get(interaction.guild.roles, name="Sanctioned")
         if not rol_sancion:
-            await interaction.response.send_message("El rol 'Sanctioned' no existe en el servidor.", ephemeral=True)
+            await interaction.followup.send("El rol 'Sanctioned' no existe en el servidor.")
             return
 
         await member.add_roles(rol_sancion)
 
-        await interaction.response.send_message(
-            f"{member.mention} ha sido sancionado por {tipo_sancion}. Imagen: {url_imagen}", ephemeral=True
+        await interaction.followup.send(
+            f"{member.mention} ha sido sancionado por {tipo_sancion}. Imagen: {url_imagen}"
         )
 
-    
+        
     @sancionar.autocomplete("tipo_sancion")
-    async def sancionar_autocomplete(
+    async def sancionar_tipo_autocomplete(
         self,
         interaction: discord.Interaction,
-        current: str, 
+        current: str,
     ) -> list[app_commands.Choice[str]]:
-        
         tipos_permitidos = ["spam", "toxicidad", "flood", "off-topic"]
-        opciones = [tipo for tipo in tipos_permitidos if current.lower() in tipo.lower()]
-        
-        return [app_commands.Choice(name=tipo, value=tipo) for tipo in opciones]
+
+        # Filtrar según lo que el usuario está escribiendo actualmente
+        opciones_filtradas = [
+            tipo for tipo in tipos_permitidos if current.lower() in tipo.lower()
+        ]
+
+        # Retornar como lista de Choices
+        return [
+            app_commands.Choice(name=tipo, value=tipo) for tipo in opciones_filtradas
+        ]
+
+
     
     @app_commands.command(name="apelar_sancion", description="Apela una sanción existente")
     async def apelar_sancion(
@@ -169,23 +174,59 @@ class slash_commands(commands.Cog):
                 )
                 return
 
-            
+            # Leer la imagen y subirla a Imgur
+            imagen_data = await evidencia.read()
+            url_imgur = subir_a_imgur_directo(imagen_data, id_sancion)
+
+            if url_imgur is None:
+                await interaction.response.send_message(
+                    "❌ Ocurrió un error al subir la imagen a Imgur. Intenta nuevamente más tarde.", ephemeral=True
+                )
+                return
+
+            # Guardar la apelación en la base de datos
+            apelacion_id = guardar_apelacion(
+                sancion_id=id_sancion,
+                user_id=user_id,
+                razones=razones,
+                evidencia=url_imgur
+            )
+
+            # Crear el embed para notificar en el canal de logs
+            log_channel_id = 1358223294112989474
+            log_channel = interaction.client.get_channel(log_channel_id)
+
+            # Confirmación al usuario y cierre del ticket
             timestamp = int(time.time()) + 11
             await interaction.response.send_message(
-                f"✅ Tu apelación para la sanción ha sido recibida.\n\n"
-                f"⏳ Este canal se cerrará automáticamente <t:{timestamp}:R>.",
-                ephemeral=True 
+                f"✅ Tu apelación ha sido registrada correctamente.\n"
+                f"🖼️ Evidencia subida: {url_imgur}\n\n"
+                f"⏳ Este canal se cerrará automáticamente <t:{timestamp}:R>.\n\n",
+                ephemeral=True
             )
+            
+            if log_channel:
+                embed = discord.Embed(
+                    title="📢 Nueva Apelación Recibida",
+                    color=discord.Color.yellow()
+                )
+                embed.set_author(name=str(interaction.user), icon_url=interaction.user.display_avatar.url)
+                embed.add_field(name="🆔 Sanción", value=str(id_sancion), inline=False)
+                embed.add_field(name="📝 Razón de Apelación", value=razones, inline=False)
+                embed.set_image(url=url_imgur)
+
+                await log_channel.send(embed=embed)
+
             await asyncio.sleep(9)
             await channel.delete(reason="Cierre automático tras apelación.")
-            
-            
 
         except Exception as e:
             print(f"Error al apelar sanción: {e}")
             await interaction.response.send_message(
                 "❌ Ocurrió un error al intentar apelar la sanción.", ephemeral=True
             )
+
+
     
     @apelar_sancion.autocomplete("id_sancion")
     async def apelar_sancion_autocomplete(
@@ -248,7 +289,7 @@ class slash_commands(commands.Cog):
                 embed = discord.Embed(
                     title=f"Sanción ID: {sancion_id}",
                     description=f"Detalles de la sanción para {member.mention}",
-                    color=discord.Color.red(),
+                    color=0xFF0000,
                 )
                 embed.add_field(name="Motivo", value=motivo, inline=False)
                 embed.add_field(name="Fecha", value=fecha, inline=False)
@@ -268,9 +309,9 @@ class slash_commands(commands.Cog):
                 "Ocurrió un error al intentar cargar las sanciones.", ephemeral=True
             )
 
-    @app_commands.command(name="remover_sancion", description="Elimina una sanción de un jugador.")
+    @app_commands.command(name="remover_sancion", description="Revoca una sanción de un jugador.")
     async def remover_sancion(self, interaction: discord.Interaction, member: discord.Member, id_sancion: int):
-        
+
         if not interaction.user.guild_permissions.manage_roles:
             await interaction.response.send_message(
                 "No tienes permisos para remover sanciones.", ephemeral=True
@@ -278,39 +319,40 @@ class slash_commands(commands.Cog):
             return
 
         try:
-            
             conn = conectar_db()
             cursor = conn.cursor()
+            
+            # Buscar sanciones activas
             cursor.execute('''
-                SELECT id, motivo, fecha, imagen
+                SELECT id, motivo, fecha, imagen, estado
                 FROM sanciones
-                WHERE user_id = ?
+                WHERE user_id = ? AND estado = 'activa'
             ''', (str(member.id),))
             sanciones = cursor.fetchall()
 
-           
             if not sanciones:
                 await interaction.response.send_message(
-                    f"{member.mention} no tiene sanciones registradas.", ephemeral=True
+                    f"{member.mention} no tiene sanciones activas registradas.", ephemeral=True
                 )
                 conn.close()
                 return
 
-            
             if id_sancion not in [s[0] for s in sanciones]:
                 await interaction.response.send_message(
-                    f"El ID {id_sancion} no corresponde a una sanción válida.", ephemeral=True
+                    f"El ID {id_sancion} no corresponde a una sanción activa válida.", ephemeral=True
                 )
                 conn.close()
                 return
 
-            
+            # Marcar la sanción como revocada
             cursor.execute('''
-                DELETE FROM sanciones WHERE id = ?
+                UPDATE sanciones
+                SET estado = 'revocada'
+                WHERE id = ?
             ''', (id_sancion,))
             conn.commit()
 
-            
+            # Restar 1 al contador de sanciones activas del usuario
             cursor.execute('''
                 UPDATE usuarios
                 SET cant_sanciones = cant_sanciones - 1
@@ -320,43 +362,62 @@ class slash_commands(commands.Cog):
             conn.close()
 
             await interaction.response.send_message(
-                f"Sanción con ID {id_sancion} eliminada correctamente. Se actualizó el contador de sanciones de {member.mention}.",
+                f"La sanción con ID {id_sancion} fue revocada correctamente. Se actualizó el contador de sanciones activas de {member.mention}.",
                 ephemeral=True
             )
+
         except Exception as e:
-            print(f"Error al remover la sanción: {e}")
+            print(f"Error al revocar la sanción: {e}")
             await interaction.response.send_message(
-                "Ocurrió un error al intentar remover la sanción.", ephemeral=True
+                "Ocurrió un error al intentar revocar la sanción.", ephemeral=True
             )
+
 
     @remover_sancion.autocomplete("id_sancion")
     async def remover_sancion_autocomplete(
         self,
         interaction: discord.Interaction,
-        current: str,  
+        current: str,
     ) -> list[app_commands.Choice[int]]:
         
-        member = interaction.namespace.member
+        # Intentar obtener el miembro (puede que no esté aún definido en el autocompletado)
+        member = interaction.namespace.member or interaction.user
+
         if not member:
             return []
 
-        
-        conn = conectar_db()
-        cursor = conn.cursor()
-        cursor.execute('SELECT id FROM sanciones WHERE user_id = ?', (str(member.id),))
-        sanciones = cursor.fetchall()
-        conn.close()
+        try:
+            conn = conectar_db()
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, estado
+                FROM sanciones
+                WHERE user_id = ?
+            ''', (str(member.id),))
+            sanciones = cursor.fetchall()
+            conn.close()
 
-        
-        sanciones_filtradas = [
-            sancion[0] for sancion in sanciones if current.isdigit() and current in str(sancion[0])
-        ]
+            # Filtrar solo las sanciones activas
+            sanciones_activas = [s for s in sanciones if s[1].lower() == 'activa']
 
-        
-        return [
-            app_commands.Choice(name=f"ID: {sancion_id}", value=sancion_id)
-            for sancion_id in sanciones_filtradas
-        ]
+            # Filtrar por búsqueda parcial del usuario
+            if current.isdigit():
+                sanciones_filtradas = [
+                    s[0] for s in sanciones_activas if current in str(s[0])
+                ]
+            else:
+                sanciones_filtradas = [s[0] for s in sanciones_activas]
+
+            # Retornar las opciones como Choices de tipo int
+            return [
+                app_commands.Choice(name=f"{sancion_id}", value=int(sancion_id))
+                for sancion_id in sanciones_filtradas[:25]  # Máximo 25 opciones
+            ]
+
+        except Exception as e:
+            print(f"Error en autocomplete de remover_sancion: {e}")
+            return []
+
         
    
 
