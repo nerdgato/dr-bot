@@ -6,7 +6,7 @@ from datetime import datetime
 import json
 import requests
 import os
-from cogs.database import inicializar_db, guardar_sancion, cargar_sanciones, actualizar_sancion_con_imagen, conectar_db, guardar_apelacion, cargar_apelaciones_por_usuario, cargar_apelaciones_por_sancion, actualizar_apelacion_imagen
+from cogs.database import inicializar_db, guardar_sancion, cargar_sanciones, actualizar_sancion_con_imagen, conectar_db, guardar_apelacion, cargar_apelaciones_por_usuario, cargar_apelaciones_por_sancion, actualizar_apelacion_imagen, actualizar_estado_apelacion
 from dotenv import load_dotenv
 import asyncio
 import time
@@ -359,6 +359,19 @@ class slash_commands(commands.Cog):
                 WHERE discord_id = ?
             ''', (str(member.id),))
             conn.commit()
+
+            # Obtener la apelación relacionada con la sanción
+            cursor.execute('''
+                SELECT id
+                FROM apelaciones
+                WHERE sancion_id = ? AND estado = 'pendiente'
+            ''', (id_sancion,))
+            apelacion = cursor.fetchone()
+
+            if apelacion:
+                # Actualizar estado de la apelación a "aprobada"
+                actualizar_estado_apelacion(apelacion[0], 'aprobada')
+
             conn.close()
 
             await interaction.response.send_message(
@@ -371,6 +384,7 @@ class slash_commands(commands.Cog):
             await interaction.response.send_message(
                 "Ocurrió un error al intentar revocar la sanción.", ephemeral=True
             )
+
 
 
     @remover_sancion.autocomplete("id_sancion")
